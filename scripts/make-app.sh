@@ -24,7 +24,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>CFBundleName</key><string>미니 어항</string>
+<key>CFBundleName</key><string>Mini Aquarium</string>
+<key>CFBundleDevelopmentRegion</key><string>en</string>
+<key>CFBundleLocalizations</key><array><string>en</string><string>ko</string></array>
 <key>CFBundleIdentifier</key><string>local.mini-aquarium</string>
 <key>CFBundleExecutable</key><string>MiniAquarium</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
@@ -34,5 +36,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>LSUIElement</key><true/>
 </dict></plist>
 PLIST
+for pair in "en:Mini Aquarium" "ko:미니 어항"; do
+  mkdir -p "$APP/Contents/Resources/${pair%%:*}.lproj"
+  printf '"CFBundleName" = "%s";\n"CFBundleDisplayName" = "%s";\n' "${pair#*:}" "${pair#*:}" > "$APP/Contents/Resources/${pair%%:*}.lproj/InfoPlist.strings"
+done
 codesign --force --sign - -r='designated => identifier "local.mini-aquarium"' "$APP"
 echo "만들어짐: $PWD/$APP"

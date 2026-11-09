@@ -50,6 +50,8 @@ enum DockPlacement {
 
     /// 시스템 설정의 손쉬운 사용 화면을 연다.
     static func openAccessibilitySettings() {
+        // 권한을 한 번 요청해야 손쉬운 사용 목록에 이 앱 항목이 생긴다.
+        _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }

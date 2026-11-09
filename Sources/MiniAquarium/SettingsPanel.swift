@@ -7,11 +7,11 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .timer: return "타이머"
-        case .tank: return "어항"
-        case .fish: return "물고기"
-        case .decor: return "꾸미기"
-        case .info: return "정보"
+        case .timer: return tr("타이머", "Timer")
+        case .tank: return tr("어항", "Tank")
+        case .fish: return tr("물고기", "Fish")
+        case .decor: return tr("꾸미기", "Decorate")
+        case .info: return tr("정보", "Info")
         }
     }
 
@@ -44,19 +44,19 @@ private enum TimerLook: CaseIterable {
 
     var title: String {
         switch self {
-        case .both: return "둘 다"
-        case .food: return "먹이만"
-        case .time: return "시간만"
-        case .none: return "숨김"
+        case .both: return tr("둘 다", "Both")
+        case .food: return tr("먹이만", "Food only")
+        case .time: return tr("시간만", "Time only")
+        case .none: return tr("숨김", "Hidden")
         }
     }
 
     var hint: String {
         switch self {
-        case .both: return "노란 먹이 띠를 물고기가 갉아먹고, 남은 시간 글씨도 보여요."
-        case .food: return "먹이 띠만 줄어들어요. 남은 시간 글씨는 숨겨요."
-        case .time: return "먹이 없이 남은 시간 글씨만 보여요. 물고기는 자유롭게 헤엄쳐요."
-        case .none: return "타이머가 돌아도 어항은 평소 모습 그대로예요."
+        case .both: return tr("노란 먹이 띠를 물고기가 갉아먹고, 남은 시간 글씨도 보여요.", "Fish nibble a yellow food bar, and the time left is shown.")
+        case .food: return tr("먹이 띠만 줄어들어요. 남은 시간 글씨는 숨겨요.", "Only the food bar shrinks. The time text is hidden.")
+        case .time: return tr("먹이 없이 남은 시간 글씨만 보여요. 물고기는 자유롭게 헤엄쳐요.", "Only the time text is shown, with no food. Fish swim freely.")
+        case .none: return tr("타이머가 돌아도 어항은 평소 모습 그대로예요.", "The tank looks the same while the timer runs.")
         }
     }
 }
@@ -65,19 +65,19 @@ private enum DockGapChoice {
     static let values = [0, 8, 14, 24, 40, 60]
     static func title(_ value: Int) -> String {
         switch value {
-        case 0: return "붙임"
-        case 8: return "좁게"
-        case 14: return "보통"
-        case 24: return "넓게"
-        case 40: return "더 넓게"
-        default: return "최대"
+        case 0: return tr("붙임", "Touching")
+        case 8: return tr("좁게", "Narrow")
+        case 14: return tr("보통", "Normal")
+        case 24: return tr("넓게", "Wide")
+        case 40: return tr("더 넓게", "Wider")
+        default: return tr("최대", "Max")
         }
     }
 }
 
 private enum TimerInput: String, CaseIterable {
     case duration, clock
-    var title: String { self == .duration ? "지금부터" : "시각 지정" }
+    var title: String { self == .duration ? tr("지금부터", "From now") : tr("시각 지정", "At a time") }
 }
 
 /// 팝오버 안의 설정 화면. 탭으로 나눠 한 번에 하나만 보여 준다.
@@ -142,7 +142,7 @@ struct SettingsPanel: View {
     // MARK: - Timer
 
     @ViewBuilder private var timerPage: some View {
-        Section("어항에 보여줄 것") {
+        Section(tr("어항에 보여줄 것", "Show in tank")) {
             Segmented(options: TimerLook.allCases, selected: TimerLook(settings), label: \.title) { look in
                 model.update { $0.with(showTimerFood: look.showsFood).with(showRemaining: look.showsTime) }
             }
@@ -150,19 +150,19 @@ struct SettingsPanel: View {
         }
         if let timer = model.timer {
             VStack(spacing: 8) {
-                Text("남은 시간").font(.caption).foregroundStyle(.secondary)
+                Text(tr("남은 시간", "Time left")).font(.caption).foregroundStyle(.secondary)
                 Text(TimerState.format(timer.remaining(at: Date())))
                     .font(.system(size: 44, weight: .bold, design: .rounded).monospacedDigit())
-                Text("\(timer.end.formatted(date: .omitted, time: .shortened))에 끝나요")
+                Text(tr("\(timer.end.formatted(date: .omitted, time: .shortened))에 끝나요", "Ends at \(timer.end.formatted(date: .omitted, time: .shortened))"))
                     .font(.caption).foregroundStyle(.secondary)
-                Button("취소", role: .destructive, action: model.cancelTimer).padding(.top, 6)
+                Button(tr("취소", "Cancel"), role: .destructive, action: model.cancelTimer).padding(.top, 6)
             }
             .frame(maxWidth: .infinity)
         } else {
             Segmented(options: TimerInput.allCases, selected: timerInput, label: \.title) { timerInput = $0 }
             if timerInput == .duration { durationInput } else { clockInput }
             Button(action: startTimer) {
-                Text("시작").font(.system(size: 14, weight: .semibold)).frame(maxWidth: .infinity).padding(.vertical, 5)
+                Text(tr("시작", "Start")).font(.system(size: 14, weight: .semibold)).frame(maxWidth: .infinity).padding(.vertical, 5)
             }
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
@@ -180,9 +180,9 @@ struct SettingsPanel: View {
     private var durationInput: some View {
         VStack(spacing: 14) {
             HStack(spacing: 18) {
-                Nudger(value: "\(settings.timerMinutes / 60)", unit: "시간",
+                Nudger(value: "\(settings.timerMinutes / 60)", unit: tr("시간", "hr"),
                        minus: { shiftMinutes(-60) }, plus: { shiftMinutes(60) })
-                Nudger(value: "\(settings.timerMinutes % 60)", unit: "분",
+                Nudger(value: "\(settings.timerMinutes % 60)", unit: tr("분", "min"),
                        minus: { shiftMinutes(-5) }, plus: { shiftMinutes(5) })
             }
             .frame(maxWidth: .infinity)
@@ -193,7 +193,7 @@ struct SettingsPanel: View {
                     }
                 }
             }
-            Text("\(Self.longDuration(settings.timerMinutes)) 뒤에 알려줘요")
+            Text(tr("\(Self.longDuration(settings.timerMinutes)) 뒤에 알려줘요", "Alerts in \(Self.longDuration(settings.timerMinutes))"))
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
@@ -203,20 +203,20 @@ struct SettingsPanel: View {
         let wait = TimerState.until(minuteOfDay: minute, from: Date()).duration
         return VStack(spacing: 14) {
             HStack(spacing: 18) {
-                Nudger(value: String(format: "%02d", minute / 60), unit: "시",
+                Nudger(value: String(format: "%02d", minute / 60), unit: tr("시", "hr"),
                        minus: { shiftTarget(-60) }, plus: { shiftTarget(60) })
-                Nudger(value: String(format: "%02d", minute % 60), unit: "분",
+                Nudger(value: String(format: "%02d", minute % 60), unit: tr("분", "min"),
                        minus: { shiftTarget(-5) }, plus: { shiftTarget(5) })
             }
             .frame(maxWidth: .infinity)
             HStack(spacing: 6) {
-                ForEach([(12 * 60, "점심 12:00"), (17 * 60 + 30, "17:30"), (18 * 60, "퇴근 18:00")], id: \.0) { item in
+                ForEach([(12 * 60, tr("점심 12:00", "Lunch 12:00")), (17 * 60 + 30, "17:30"), (18 * 60, tr("퇴근 18:00", "Leave 18:00"))], id: \.0) { item in
                     Chip(title: item.1, isSelected: minute == item.0) {
                         model.update { $0.with(targetMinuteOfDay: item.0) }
                     }
                 }
             }
-            Text("\(Self.longDuration(Int((wait / 60).rounded(.up)))) 뒤에 알려줘요")
+            Text(tr("\(Self.longDuration(Int((wait / 60).rounded(.up)))) 뒤에 알려줘요", "Alerts in \(Self.longDuration(Int((wait / 60).rounded(.up))))"))
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
@@ -230,13 +230,13 @@ struct SettingsPanel: View {
     }
 
     private static func shortDuration(_ minutes: Int) -> String {
-        minutes % 60 == 0 ? "\(minutes / 60)시간" : "\(minutes)분"
+        minutes % 60 == 0 ? tr("\(minutes / 60)시간", "\(minutes / 60) hr") : tr("\(minutes)분", "\(minutes) min")
     }
 
     private static func longDuration(_ minutes: Int) -> String {
         let h = minutes / 60, m = minutes % 60
-        if h == 0 { return "\(m)분" }
-        return m == 0 ? "\(h)시간" : "\(h)시간 \(m)분"
+        if h == 0 { return tr("\(m)분", "\(m) min") }
+        return m == 0 ? tr("\(h)시간", "\(h) hr") : tr("\(h)시간 \(m)분", "\(h) hr \(m) min")
     }
 
     // MARK: - Tank
@@ -244,34 +244,34 @@ struct SettingsPanel: View {
     private var dockIsVertical: Bool { DockPlacement.current()?.isVertical ?? true }
 
     @ViewBuilder private var tankPage: some View {
-        Section("표시") {
+        Section(tr("표시", "Display")) {
             Segmented(options: DisplayMode.allCases, selected: settings.displayMode,
-                      label: { $0 == .floating ? "화면에 띄우기" : "메뉴바에서만" }) { mode in
+                      label: { $0 == .floating ? tr("화면에 띄우기", "On screen") : tr("메뉴바에서만", "Menu bar only") }) { mode in
                 model.update { $0.with(displayMode: mode) }
             }
         }
         if settings.displayMode == .floating {
-            Section("배치") {
-                Segmented(options: [true, false], selected: settings.dockFit, label: { $0 ? "Dock에 고정" : "플로팅" }) { fit in
+            Section(tr("배치", "Layout")) {
+                Segmented(options: [true, false], selected: settings.dockFit, label: { $0 ? tr("Dock에 고정", "Fit to Dock") : tr("플로팅", "Floating") }) { fit in
                     model.update { $0.with(dockFit: fit) }
                 }
                 Text(settings.dockFit
-                     ? "Dock 아이콘 줄 \(dockIsVertical ? "위·아래" : "왼쪽·오른쪽")의 빈 자리를 꽉 채워요. Dock에 자리가 없으면 자동으로 플로팅으로 보여줘요."
-                     : "Dock과 상관없이 화면 위에 띄워요. 끌어서 옮길 수 있어요.")
+                     ? tr("Dock 아이콘 줄 \(dockIsVertical ? "위·아래" : "왼쪽·오른쪽")의 빈 자리를 꽉 채워요. Dock에 자리가 없으면 자동으로 플로팅으로 보여줘요.", "Fills the empty space \(dockIsVertical ? "above and below" : "left and right of") the Dock icons. Falls back to floating if there is no room.")
+                     : tr("Dock과 상관없이 화면 위에 띄워요. 끌어서 옮길 수 있어요.", "Floats on screen regardless of the Dock. Drag to move it."))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
         if settings.displayMode == .floating, settings.dockFit {
-            Section("어항 위치") {
+            Section(tr("어항 위치", "Tank position")) {
                 Segmented(options: DockEdge.allCases, selected: settings.dockEdge, label: { $0.title(vertical: dockIsVertical) }) { edge in
                     model.update { $0.with(dockEdge: edge) }
                 }
-                Text("양쪽을 고르면 Dock 양옆이 하나로 이어진 긴 어항이 돼요.")
+                Text(tr("양쪽을 고르면 Dock 양옆이 하나로 이어진 긴 어항이 돼요.", "Choose both sides to join the two sides of the Dock into one long tank."))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
         if settings.displayMode == .floating, settings.dockFit {
-            Section("Dock과의 간격") {
+            Section(tr("Dock과의 간격", "Gap from Dock")) {
                 Segmented(options: DockGapChoice.values, selected: settings.dockGap, label: DockGapChoice.title) { gap in
                     model.update { $0.with(dockGap: gap) }
                 }
@@ -280,25 +280,25 @@ struct SettingsPanel: View {
         if settings.displayMode == .floating, settings.dockFit {
             AccessibilityCard()
         }
-        Section("물고기·소품 크기") {
+        Section(tr("물고기·소품 크기", "Fish & decor size")) {
             Segmented(options: ObjectSize.allCases, selected: settings.objectSize, label: \.title) { objectSize in
                 model.update { $0.with(objectSize: objectSize) }
             }
         }
         if settings.displayMode == .menuBar || !settings.dockFit || !model.isDocked {
-            Section("크기") {
+            Section(tr("크기", "Size")) {
                 Segmented(options: TankSize.allCases, selected: settings.size, label: \.title) { size in
                     model.update { $0.with(size: size) }
                 }
             }
-            Section("비율") {
+            Section(tr("비율", "Shape")) {
                 Segmented(options: TankLayout.allCases, selected: settings.layout, label: \.shortTitle) { layout in
                     model.update { $0.with(layout: layout) }
                 }
             }
-            Section("모양") {
+            Section(tr("모양", "Style")) {
                 Segmented(options: TankShape.allCases, selected: settings.shape,
-                          label: { $0.title.replacingOccurrences(of: " 어항", with: "") }) { shape in
+                          label: { $0.title.replacingOccurrences(of: tr(" 어항", " tank"), with: "") }) { shape in
                     model.update { $0.with(shape: shape) }
                 }
             }
@@ -309,17 +309,17 @@ struct SettingsPanel: View {
 
     @ViewBuilder private var fishPage: some View {
         HStack {
-            Text("\(settings.fish.count) / \(AquariumSettings.maxFish)마리")
+            Text(tr("\(settings.fish.count) / \(AquariumSettings.maxFish)마리", "\(settings.fish.count) / \(AquariumSettings.maxFish) fish"))
                 .font(.caption).foregroundStyle(.secondary)
             Spacer()
             Button {
                 model.update { $0.resettingFish() }
             } label: {
-                Label("추천 설정", systemImage: "wand.and.stars")
+                Label(tr("추천 설정", "Recommended"), systemImage: "wand.and.stars")
             }
             .controlSize(.small)
             .disabled(settings.fish == AquariumSettings.recommendedFish)
-            .help("물고기 수와 종류를 추천 구성(10마리)으로 맞춰요")
+            .help(tr("물고기 수와 종류를 추천 구성(10마리)으로 맞춰요", "Reset fish to the recommended set (10 fish)"))
         }
         statusFishSection
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 12) {
@@ -336,26 +336,31 @@ struct SettingsPanel: View {
     }
 
     @ViewBuilder private var infoPage: some View {
-        Section("시작") {
+        Section("언어 / Language") {
+            Segmented(options: Language.allCases, selected: settings.language, label: { $0.nativeName }) { language in
+                model.update { $0.with(language: language) }
+            }
+        }
+        Section(tr("시작", "Start")) {
             Toggle(isOn: Binding(get: { launchAtLogin }, set: { setLaunchAtLogin($0) })) {
-                Text("로그인할 때 자동 실행").font(.system(size: 12.5))
+                Text(tr("로그인할 때 자동 실행", "Launch at login")).font(.system(size: 12.5))
             }
             .toggleStyle(.switch)
             .controlSize(.small)
             if let launchError {
                 Text(launchError).font(.caption).foregroundStyle(.red)
             } else if !LaunchAtLogin.isAvailable {
-                Text("앱(.app)으로 실행했을 때만 설정할 수 있어요.").font(.caption).foregroundStyle(.secondary)
+                Text(tr("앱(.app)으로 실행했을 때만 설정할 수 있어요.", "Only available when run as an app (.app).")).font(.caption).foregroundStyle(.secondary)
             }
         }
-        Section("권한") {
+        Section(tr("권한", "Permissions")) {
             AccessibilityCard(alwaysShow: true)
         }
-        Section("앱 정보") {
+        Section(tr("앱 정보", "About")) {
             VStack(alignment: .leading, spacing: 8) {
-                InfoRow(label: "버전", value: AppInfo.version)
-                InfoRow(label: "제작자", value: AppInfo.author)
-                InfoRow(label: "이메일", value: AppInfo.email)
+                InfoRow(label: tr("버전", "Version"), value: AppInfo.version)
+                InfoRow(label: tr("제작자", "Author"), value: AppInfo.author)
+                InfoRow(label: tr("이메일", "Email"), value: AppInfo.email)
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -368,13 +373,13 @@ struct SettingsPanel: View {
             try LaunchAtLogin.set(on)
             launchError = nil
         } catch {
-            launchError = "설정하지 못했어요: \(error.localizedDescription)"
+            launchError = tr("설정하지 못했어요: \(error.localizedDescription)", "Could not change: \(error.localizedDescription)")
         }
         launchAtLogin = LaunchAtLogin.isEnabled
     }
 
     @ViewBuilder private var statusFishSection: some View {
-        Section("메뉴바 아이콘") {
+        Section(tr("메뉴바 아이콘", "Menu bar icon")) {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 5), spacing: 6) {
                 ForEach(Species.allCases, id: \.self) { species in
                     StatusFishChip(species: species, isSelected: settings.statusFish == species) {
@@ -382,20 +387,20 @@ struct SettingsPanel: View {
                     }
                 }
             }
-            Text("화면 위쪽 메뉴바에서 헤엄치는 물고기를 골라요.")
+            Text(tr("화면 위쪽 메뉴바에서 헤엄치는 물고기를 골라요.", "Pick the fish that swims in the menu bar."))
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
 
     @ViewBuilder private var decorPage: some View {
-        Section("먹이") {
+        Section(tr("먹이", "Food")) {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
                 ForEach(FoodKind.allCases, id: \.self) { kind in
                     FoodCard(kind: kind, isSelected: settings.food == kind) { model.update { $0.with(food: kind) } }
                 }
             }
         }
-        Section("소품") {
+        Section(tr("소품", "Decor")) {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 12) {
                 ForEach(Decor.allCases, id: \.self) { decor in
                     DecorCard(decor: decor, isOn: settings.decors.contains(decor)) {
@@ -494,15 +499,15 @@ private struct AccessibilityCard: View {
             HStack(spacing: 6) {
                 Image(systemName: granted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                     .foregroundStyle(granted ? Color.green : Color.orange)
-                Text(granted ? "손쉬운 사용 권한 허용됨" : "손쉬운 사용 권한이 필요해요")
+                Text(granted ? tr("손쉬운 사용 권한 허용됨", "Accessibility access granted") : tr("손쉬운 사용 권한이 필요해요", "Accessibility access needed"))
                     .font(.system(size: 12.5, weight: .semibold))
             }
             Text(granted
-                 ? "Dock 아이콘 줄의 실제 길이에 맞춰 어항이 자리 잡아요."
-                 : "허용하지 않으면 Dock 길이를 어림해서 어항 크기가 조금 어긋날 수 있어요. 열린 목록에서 '미니 어항'을 켜 주세요.")
+                 ? tr("Dock 아이콘 줄의 실제 길이에 맞춰 어항이 자리 잡아요.", "The tank fits the real length of the Dock icons.")
+                 : tr("허용하지 않으면 Dock 길이를 어림해서 어항 크기가 조금 어긋날 수 있어요. 열린 목록에서 '미니 어항'을 켜 주세요.", "Without it the Dock length is estimated, so the tank may be slightly off. Turn on 'Mini Aquarium' in the list that opens."))
                 .font(.caption).foregroundStyle(.secondary)
             if !granted {
-                Button("손쉬운 사용 설정 열기") { DockPlacement.openAccessibilitySettings() }
+                Button(tr("손쉬운 사용 설정 열기", "Open Accessibility settings")) { DockPlacement.openAccessibilitySettings() }
                     .controlSize(.small)
             }
         }

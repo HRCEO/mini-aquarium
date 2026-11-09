@@ -8,18 +8,18 @@ public enum Decor: String, Codable, CaseIterable {
 
     public var title: String {
         switch self {
-        case .cave: return "동굴"
-        case .castle: return "성"
-        case .kelp: return "켈프"
-        case .branchCoral: return "가지 산호"
-        case .fanCoral: return "부채 산호"
-        case .anemone: return "말미잘"
-        case .rockPile: return "바위 더미"
-        case .chest: return "보물상자"
-        case .driftwood: return "유목"
-        case .starfish: return "불가사리"
-        case .shells: return "조개"
-        case .bubbler: return "에어스톤"
+        case .cave: return tr("동굴", "Cave")
+        case .castle: return tr("성", "Castle")
+        case .kelp: return tr("켈프", "Kelp")
+        case .branchCoral: return tr("가지 산호", "Branch coral")
+        case .fanCoral: return tr("부채 산호", "Fan coral")
+        case .anemone: return tr("말미잘", "Anemone")
+        case .rockPile: return tr("바위 더미", "Rock pile")
+        case .chest: return tr("보물상자", "Treasure chest")
+        case .driftwood: return tr("유목", "Driftwood")
+        case .starfish: return tr("불가사리", "Starfish")
+        case .shells: return tr("조개", "Shells")
+        case .bubbler: return tr("에어스톤", "Air stone")
         }
     }
 

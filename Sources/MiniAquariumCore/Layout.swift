@@ -7,17 +7,17 @@ public enum TankLayout: String, Codable, CaseIterable {
 
     public var title: String {
         switch self {
-        case .standard: return "기본"
-        case .wide: return "가로로 길게"
-        case .slim: return "세로로 길게"
+        case .standard: return tr("기본", "Default")
+        case .wide: return tr("가로로 길게", "Wide")
+        case .slim: return tr("세로로 길게", "Tall")
         }
     }
 
     public var shortTitle: String {
         switch self {
-        case .standard: return "기본"
-        case .wide: return "가로"
-        case .slim: return "세로"
+        case .standard: return tr("기본", "Default")
+        case .wide: return tr("가로", "Wide")
+        case .slim: return tr("세로", "Tall")
         }
     }
 

@@ -6,10 +6,10 @@ public enum ObjectSize: String, Codable, CaseIterable, Sendable {
 
     public var title: String {
         switch self {
-        case .tiny: return "아주 작게"
-        case .small: return "작게"
-        case .normal: return "보통"
-        case .large: return "크게"
+        case .tiny: return tr("아주 작게", "Tiny")
+        case .small: return tr("작게", "Small")
+        case .normal: return tr("보통", "Normal")
+        case .large: return tr("크게", "Large")
         }
     }
 

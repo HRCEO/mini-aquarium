@@ -7,9 +7,9 @@ public enum TankShape: String, Codable, CaseIterable {
 
     public var title: String {
         switch self {
-        case .rounded: return "사각 어항"
-        case .bowl: return "둥근 어항"
-        case .tall: return "길쭉한 어항"
+        case .rounded: return tr("사각 어항", "Square tank")
+        case .bowl: return tr("둥근 어항", "Round tank")
+        case .tall: return tr("길쭉한 어항", "Tall tank")
         }
     }
 

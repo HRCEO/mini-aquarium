@@ -7,10 +7,10 @@ public enum TankSize: String, Codable, CaseIterable {
 
     public var title: String {
         switch self {
-        case .small: return "작게"
-        case .medium: return "보통"
-        case .large: return "크게"
-        case .huge: return "아주 크게"
+        case .small: return tr("작게", "Small")
+        case .medium: return tr("보통", "Normal")
+        case .large: return tr("크게", "Large")
+        case .huge: return tr("아주 크게", "Huge")
         }
     }
 

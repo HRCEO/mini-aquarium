@@ -12,7 +12,7 @@ final class AquariumModel: ObservableObject {
     @Published private(set) var frame = 0
     @Published private(set) var timer: TimerState?
     @Published private(set) var bannerUntil: Date?
-    @Published private(set) var settings: AquariumSettings
+    @Published private(set) var settings: AquariumSettings { didSet { L10n.current = settings.language } }
     /// Dock 옆에 맞춰 넣을 때의 창 크기(pt). nil이면 설정의 비율/크기를 따른다.
     @Published private(set) var dockedSize: CGSize?
 
@@ -27,6 +27,7 @@ final class AquariumModel: ObservableObject {
 
     init(settings: AquariumSettings = SettingsStore.load()) {
         self.settings = settings
+        L10n.current = settings.language
         let rect = settings.shape.rect(in: settings.layout.logicalSize)
         sim = Simulation(tankRect: rect, shape: settings.shape)
         sim.bodyScale = settings.objectSize.fishScale

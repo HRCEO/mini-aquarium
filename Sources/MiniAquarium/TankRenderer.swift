@@ -223,10 +223,10 @@ enum TankRenderer {
         let caption: String
         if let timer = model.timer {
             guard model.settings.showRemaining else { return }   // 글씨만 숨긴다 (바·물고기는 그대로)
-            caption = "남은 시간"
+            caption = tr("남은 시간", "Time left")
             timeText = TimerState.format(timer.remaining(at: now))
         } else if model.bannerUntil != nil {
-            caption = "⏰ 끝났어요!"
+            caption = tr("⏰ 끝났어요!", "⏰ Time's up!")
             timeText = "00:00"
         } else {
             return   // 평소에는 시계를 그리지 않는다

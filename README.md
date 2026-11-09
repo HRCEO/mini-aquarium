@@ -13,6 +13,7 @@ Mac 화면 한쪽, **Dock 옆 빈 자리**에 떠다니는 작은 어항이에�
 - **물고기 14종, 최대 50마리** – 금붕어, 네온테트라, 흰동가리, 블루탱, 엔젤피시, 베타, 복어, 해마, 해파리, 구피, 디스커스, 코이, 나비고기, 무어리쉬 아이돌. **추천 설정** 버튼으로 한 번에 맞출 수 있어요.
 - **꾸미기** – 먹이 종류, 소품(성, 산호, 보물상자 …), 물고기·소품 크기, 어항 모양과 크기
 - **메뉴바 아이콘** – 메뉴바에서 헤엄치는 물고기 종류 선택
+- **한국어 / English** – 설정 맨 아래 **언어** 항목에서 바꿀 수 있어요. 처음에는 시스템 언어를 따라가요.
 - **로그인할 때 자동 실행**, 메뉴바 전용 모드
 
 ## 요구 사항
@@ -23,7 +24,7 @@ Mac 화면 한쪽, **Dock 옆 빈 자리**에 떠다니는 작은 어항이에�
 ## 설치 (dmg로 받은 경우)
 
 1. `MiniAquarium-x.y.z.dmg`를 열고 **MiniAquarium**을 **Applications**로 끌어다 놓아요.
-2. 개발자 인증서로 서명한 앱이 아니라서 처음에는 막힐 수 있어요. 아래 중 하나로 열어요.
+2. 아직 Apple 개발자 인증서로 서명·공증한 앱이 아니라서(예정: [docs/TODO.md](docs/TODO.md)) 처음에는 막힐 수 있어요. 아래 중 하나로 열어요.
    - Finder에서 앱을 **우클릭 → 열기 → 열기**
    - 또는 터미널에서: `xattr -dr com.apple.quarantine /Applications/MiniAquarium.app`
 3. 실행하면 메뉴바에 물고기 아이콘이 생겨요. 클릭하면 설정이 열려요.
@@ -36,6 +37,16 @@ Dock 아이콘 줄의 **실제 길이**를 읽으려면 권한이 필요해요. 
 
 > 목록에 이름만 있고 `.app`이 붙지 않은 `exec` 항목은 쓰지 않아요. 지워도 돼요.
 
+## 삭제
+
+앱을 휴지통에 버리기만 하면 **손쉬운 사용 권한 기록과 설정이 남아요.** 완전히 지우려면 터미널에서 (저장소를 받은 경우 `scripts/uninstall.sh`, 시스템 언어에 맞춰 한국어/영어로 안내해요):
+
+```bash
+bash scripts/uninstall.sh
+```
+
+앱 종료 → 자동 실행 해제 → 손쉬운 사용 권한 기록 삭제 → 설정 삭제 → 앱 삭제 순서로 지워요. (처음 실행이 막히면 우클릭 → 열기)
+
 ## 직접 빌드하기
 
 ```bash
@@ -45,10 +56,10 @@ cd mini-aquarium
 bash scripts/make-app.sh      # build/MiniAquarium.app
 open build/MiniAquarium.app   # 반드시 .app으로 실행 (자동 실행·권한이 .app 기준)
 
-bash scripts/make-dmg.sh      # build/MiniAquarium-<버전>.dmg (배포용)
+bash scripts/make-dmg.sh      # build/MiniAquarium-<버전>.dmg (배경 그림·아이콘 배치 포함, 배포용)
 ```
 
-배포 절차와 버전 올리는 법은 [docs/RELEASING.md](docs/RELEASING.md), 구조는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)를 보세요.
+배포 절차와 버전 올리는 법은 [docs/RELEASING.md](docs/RELEASING.md), 구조는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), 앞으로의 계획(Apple 등록·공증·유료 판매)은 [docs/TODO.md](docs/TODO.md)를 보세요.
 
 ## 개발
 

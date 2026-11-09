@@ -25,9 +25,9 @@ public enum DockEdge: String, Codable, CaseIterable, Sendable {
 
     public func title(vertical: Bool) -> String {
         switch self {
-        case .before: return vertical ? "위쪽" : "왼쪽"
-        case .after: return vertical ? "아래쪽" : "오른쪽"
-        case .both: return "양쪽"
+        case .before: return vertical ? tr("위쪽", "Top") : tr("왼쪽", "Left")
+        case .after: return vertical ? tr("아래쪽", "Bottom") : tr("오른쪽", "Right")
+        case .both: return tr("양쪽", "Both sides")
         }
     }
 }

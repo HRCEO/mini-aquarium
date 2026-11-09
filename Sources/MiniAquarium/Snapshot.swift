@@ -8,6 +8,7 @@ import SwiftUI
 enum Snapshot {
     static func run(arguments: [String]) -> Never {
         if let icon = value(after: "--icon", in: arguments) { writeIcon(to: icon) }
+        if let background = value(after: "--dmg-bg", in: arguments) { writeDmgBackground(to: background) }
         guard let path = value(after: "--snapshot", in: arguments) else {
             FileHandle.standardError.write(Data("usage: --snapshot <out.png>\n".utf8))
             exit(2)
@@ -23,7 +24,8 @@ enum Snapshot {
             objectSize: value(after: "--objects", in: arguments).flatMap(ObjectSize.init(rawValue:)) ?? .normal,
             decors: Decor.allCases,
             showRemaining: !arguments.contains("--hide-remaining"),
-            showTimerFood: !arguments.contains("--hide-food")
+            showTimerFood: !arguments.contains("--hide-food"),
+            language: value(after: "--lang", in: arguments).flatMap(Language.init(rawValue:)) ?? .system
         )
         let model = AquariumModel(settings: settings)
         let now = Date()
@@ -67,6 +69,36 @@ enum Snapshot {
     private static func value(after flag: String, in arguments: [String]) -> String? {
         guard let index = arguments.firstIndex(of: flag), index + 1 < arguments.count else { return nil }
         return arguments[index + 1]
+    }
+
+    /// 디스크 이미지 창 배경(660x400): 앱을 Applications로 끌어다 놓는 안내.
+    private static func writeDmgBackground(to path: String) -> Never {
+        let view = ZStack {
+            LinearGradient(colors: [Color(red: 0.78, green: 0.91, blue: 0.98), Color(red: 0.36, green: 0.66, blue: 0.88)], startPoint: .top, endPoint: .bottom)
+            Canvas { context, size in
+                for (x, y, r) in [(0.08, 0.2, 22.0), (0.14, 0.1, 12.0), (0.92, 0.28, 18.0), (0.88, 0.14, 10.0), (0.5, 0.92, 14.0)] {
+                    let bubble = Path(ellipseIn: CGRect(x: size.width * x - r, y: size.height * y - r, width: r * 2, height: r * 2))
+                    context.fill(bubble, with: .color(.white.opacity(0.18)))
+                    context.stroke(bubble, with: .color(.white.opacity(0.7)), lineWidth: 2)
+                }
+            }
+            VStack(spacing: 4) {
+                Text("Drag to Applications  ·  Applications로 끌어다 놓으세요")
+                    .font(.system(size: 17, weight: .semibold, design: .rounded)).foregroundColor(Color(red: 0.05, green: 0.2, blue: 0.4))
+            }
+            .padding(.top, 22)
+            Image(systemName: "arrow.right")
+                .font(.system(size: 54, weight: .bold)).foregroundColor(.white.opacity(0.9))
+                .shadow(color: .black.opacity(0.2), radius: 3, y: 2)
+                .offset(y: -30)
+        }
+        .frame(width: 660, height: 400)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 1
+        guard let image = renderer.nsImage, let tiff = image.tiffRepresentation,
+              let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]),
+              (try? png.write(to: URL(fileURLWithPath: path))) != nil else { exit(1) }
+        exit(0)
     }
 
     /// 앱 아이콘(1024px): 파란 물속의 금붕어.

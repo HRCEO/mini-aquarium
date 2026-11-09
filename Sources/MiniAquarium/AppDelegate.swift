@@ -41,6 +41,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        // 이미 실행 중이면 새로 뜬 쪽이 조용히 종료한다 (어항이 두 개 뜨는 것을 막는다).
+        if Self.hasOlderInstance() {
+            NSApp.terminate(nil)
+            return
+        }
         DockPlacement.requestAccessibility()
 
         model = AquariumModel()
@@ -80,6 +85,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in MainActor.assumeIsolated { self?.refreshDock() } }
+    }
+
+    /// 같은 앱(번들 ID 또는 실행 파일 이름이 같은)이 더 먼저 떠 있으면 true.
+    /// 둘이 동시에 뜨면 먼저 시작한 쪽(같으면 pid가 작은 쪽)만 남는다.
+    private static func hasOlderInstance() -> Bool {
+        let me = NSRunningApplication.current
+        let myID = Bundle.main.bundleIdentifier
+        let myName = me.executableURL?.lastPathComponent
+        return NSWorkspace.shared.runningApplications.contains { other in
+            guard other.processIdentifier != me.processIdentifier else { return false }
+            let same = myID != nil ? other.bundleIdentifier == myID : other.executableURL?.lastPathComponent == myName
+            guard same else { return false }
+            switch (other.launchDate, me.launchDate) {
+            case let (o?, m?) where o != m: return o < m
+            default: return other.processIdentifier < me.processIdentifier
+            }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -210,7 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func statusText() -> String {
-        model.bannerUntil != nil ? " ⏰ 끝났어요!" : ""
+        model.bannerUntil != nil ? " " + tr("⏰ 끝났어요!", "⏰ Time's up!") : ""
     }
 
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {

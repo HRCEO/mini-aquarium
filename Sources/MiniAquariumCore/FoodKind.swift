@@ -7,10 +7,10 @@ public enum FoodKind: String, Codable, CaseIterable {
 
     public var title: String {
         switch self {
-        case .flakes: return "플레이크"
-        case .pellets: return "알갱이"
-        case .shrimp: return "건조 새우"
-        case .algae: return "해초 웨이퍼"
+        case .flakes: return tr("플레이크", "Flakes")
+        case .pellets: return tr("알갱이", "Pellets")
+        case .shrimp: return tr("건조 새우", "Dried shrimp")
+        case .algae: return tr("해초 웨이퍼", "Algae wafer")
         }
     }
 

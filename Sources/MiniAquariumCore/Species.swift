@@ -8,20 +8,20 @@ public enum Species: String, Codable, CaseIterable {
 
     public var title: String {
         switch self {
-        case .goldfish: return "금붕어"
-        case .tetra: return "네온테트라"
-        case .clownfish: return "흰동가리"
-        case .tang: return "블루탱"
-        case .angelfish: return "엔젤피시"
-        case .betta: return "베타"
-        case .puffer: return "복어"
-        case .seahorse: return "해마"
-        case .jellyfish: return "해파리"
-        case .guppy: return "구피"
-        case .discus: return "디스커스"
-        case .koi: return "코이"
-        case .butterflyfish: return "나비고기"
-        case .moorishIdol: return "무어리쉬 아이돌"
+        case .goldfish: return tr("금붕어", "Goldfish")
+        case .tetra: return tr("네온테트라", "Neon tetra")
+        case .clownfish: return tr("흰동가리", "Clownfish")
+        case .tang: return tr("블루탱", "Blue tang")
+        case .angelfish: return tr("엔젤피시", "Angelfish")
+        case .betta: return tr("베타", "Betta")
+        case .puffer: return tr("복어", "Pufferfish")
+        case .seahorse: return tr("해마", "Seahorse")
+        case .jellyfish: return tr("해파리", "Jellyfish")
+        case .guppy: return tr("구피", "Guppy")
+        case .discus: return tr("디스커스", "Discus")
+        case .koi: return tr("코이", "Koi")
+        case .butterflyfish: return tr("나비고기", "Butterflyfish")
+        case .moorishIdol: return tr("무어리쉬 아이돌", "Moorish idol")
         }
     }
 
