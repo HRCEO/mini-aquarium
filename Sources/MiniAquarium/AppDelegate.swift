@@ -28,6 +28,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var menuController: MenuController!
     private let popover = NSPopover()
     private var clockTimer: Timer?
+    private var dockTimer: Timer?
+    private var screenObserver: NSObjectProtocol?
     private var settingsObserver: AnyCancellable?
     private var appliedMode: DisplayMode?
     private var iconFrames: [NSImage] = []
@@ -72,12 +74,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         clockTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tickStatusItem() }
         }
-        Timer.scheduledTimer(withTimeInterval: Self.dockRefreshInterval, repeats: true) { [weak self] _ in
+        dockTimer = Timer.scheduledTimer(withTimeInterval: Self.dockRefreshInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refreshDock() }
         }
-        NotificationCenter.default.addObserver(
+        screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in MainActor.assumeIsolated { self?.refreshDock() } }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        clockTimer?.invalidate()
+        dockTimer?.invalidate()
+        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
     }
 
     // MARK: - Mode handling

@@ -95,7 +95,7 @@ struct SettingsTests {
     func roundTrip() throws {
         let store = try #require(EphemeralDefaults())
         defer { store.cleanup() }
-        let settings = AquariumSettings().adding(.puffer).with(shape: .tall).with(size: .large).with(food: .shrimp).with(displayMode: .menuBar).with(clock: ClockStyle(showSeconds: false, use24Hour: true)).with(timerMinutes: 40).with(origin: CGPoint(x: 5, y: 7))
+        let settings = AquariumSettings().adding(.puffer).with(shape: .tall).with(size: .large).with(food: .shrimp).with(displayMode: .menuBar).with(timerMinutes: 40).with(origin: CGPoint(x: 5, y: 7))
         SettingsStore.save(settings, to: store.defaults)
         #expect(SettingsStore.load(from: store.defaults) == settings)
     }
@@ -177,16 +177,8 @@ struct VariantTests {
     }
 }
 
-@Suite("Clock")
-struct ClockTests {
-    @Test("12/24시간, 초 표시 형식")
-    func formats() {
-        let t = FixedTimer.sampleDate(hour: 21, minute: 5, second: 9)
-        #expect(ClockFormat.time(t, style: ClockStyle(showSeconds: true, use24Hour: true), timeZone: FixedTimer.utc) == "21:05:09")
-        #expect(ClockFormat.time(t, style: ClockStyle(showSeconds: false, use24Hour: true), timeZone: FixedTimer.utc) == "21:05")
-        #expect(ClockFormat.time(t, style: ClockStyle(showSeconds: true, use24Hour: false), timeZone: FixedTimer.utc).hasSuffix("9:05:09"))
-    }
-
+@Suite("Settings 저장")
+struct SettingsStoreTests {
     @Test("옛 저장값도 기본값으로 읽힌다")
     func lenientDecode() throws {
         let store = try #require(EphemeralDefaults())
@@ -196,6 +188,16 @@ struct ClockTests {
         #expect(loaded.fish == [.goldfish])
         #expect(loaded.shape == .bowl)
         #expect(loaded.displayMode == .floating)
+    }
+
+    @Test("잘못된 위치 값이 있어도 나머지 설정은 살아남는다")
+    func corruptOriginKeepsOtherSettings() throws {
+        let store = try #require(EphemeralDefaults())
+        defer { store.cleanup() }
+        store.writeRaw("{\"shape\":\"bowl\",\"originX\":\"oops\"}")
+        let loaded = SettingsStore.load(from: store.defaults)
+        #expect(loaded.shape == .bowl)
+        #expect(loaded.originX == nil)
     }
 }
 

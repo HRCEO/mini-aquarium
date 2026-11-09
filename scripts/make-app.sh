@@ -9,7 +9,9 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 cp "$BIN" "$APP/Contents/MacOS/MiniAquarium"
 mkdir -p "$APP/Contents/Resources"
-ICONSET="$(mktemp -d)/AppIcon.iconset"
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+ICONSET="$WORK/AppIcon.iconset"
 mkdir -p "$ICONSET"
 "$BIN" --icon "$ICONSET/base.png"
 for size in 16 32 128 256 512; do

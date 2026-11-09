@@ -39,6 +39,7 @@ public enum TankShape: String, Codable, CaseIterable {
             )
         }
         let a = inner.width / 2, b = inner.height / 2
+        guard a > 0, b > 0 else { return CGPoint(x: inner.midX, y: inner.midY) }
         let dx = (point.x - inner.midX) / a, dy = (point.y - inner.midY) / b
         let d = hypot(dx, dy)
         if d <= 1 { return point }
