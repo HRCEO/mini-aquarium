@@ -75,3 +75,4 @@ swift test                    # 코어 로직 테스트 (Swift Testing, Xcode �
 
 - 제작자: HRCEO · hrceolee@gmail.com
 - 버전: 1.0.0
+- 저작권: © 2026 HRCEO. All rights reserved. (오픈소스 라이선스 아님 — 자세한 내용은 [LICENSE](LICENSE))
