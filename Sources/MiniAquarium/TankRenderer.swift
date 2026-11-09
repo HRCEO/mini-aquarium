@@ -32,11 +32,13 @@ enum TankRenderer {
             drawSand(&layer, rect: rect)
             drawDecors(&layer, decors.filter { $0.layer < 2 }, rect: rect, shape: shape, time: t, scale: model.decorScale)
             drawBubbles(&layer, rect: rect, time: t)
-            if model.timer != nil, model.settings.showTimerFood {
-                drawStrip(&layer, zone: model.zone(), bites: sim.bites)
-            }
+            let zone = model.timer != nil && model.settings.showTimerFood ? model.zone() : nil
+            // 가로 띠는 소품에 가려지지 않게 맨 위에 그린다. (세로 띠는 소품과 겹치지 않아 물고기 뒤에 둔다)
+            let stripOnTop = zone.map { !$0.isVertical } ?? false
+            if let zone, !stripOnTop { drawStrip(&layer, zone: zone, bites: sim.bites) }
             drawFish(&layer, sim: sim)
             drawDecors(&layer, decors.filter { $0.layer >= 2 }, rect: rect, shape: shape, time: t, scale: model.decorScale)
+            if let zone, stripOnTop { drawStrip(&layer, zone: zone, bites: sim.bites, backdrop: true) }
             drawFoods(&layer, sim: sim)
             drawCrumbs(&layer, sim: sim)
         }
@@ -117,9 +119,13 @@ enum TankRenderer {
 
     private static func fraction(_ value: Double) -> Double { value - value.rounded(.down) }
 
-    private static func drawStrip(_ layer: inout GraphicsContext, zone: NibbleZone, bites: BiteField) {
+    private static func drawStrip(_ layer: inout GraphicsContext, zone: NibbleZone, bites: BiteField, backdrop: Bool = false) {
         let bar = zone.bar
         layer.drawLayer { strip in
+            if backdrop {
+                // 소품 위에서도 눈에 띄도록 어두운 테두리를 깐다. 필터 대신 같은 레이어에 그려서 갉아낼 때 함께 지워진다.
+                strip.fill(Path(roundedRect: bar.insetBy(dx: -2, dy: -2), cornerRadius: 7), with: .color(Art.c(0.05, 0.2, 0.35).opacity(0.55)))
+            }
             strip.fill(Path(roundedRect: bar, cornerRadius: 5), with: .color(Art.c(0.98, 0.78, 0.40)))
             let shine = zone.isVertical
                 ? CGRect(x: bar.minX, y: bar.minY, width: 4, height: bar.height)
@@ -247,12 +253,12 @@ enum TankRenderer {
         } else {
             return   // 평소에는 시계를 그리지 않는다
         }
-        if rect.height < 100 {   // 가로로 납작한 어항: 한 줄
+        if rect.height < NibbleZone.compactHeight {   // 가로로 납작한 어항: 오른쪽 끝에 글씨, 그 앞으로 먹이 띠
             context.drawLayer { text in
                 text.addFilter(.shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1))
                 text.draw(
-                    Text("\(caption)  \(timeText)").font(.system(size: min(rect.height * 0.36, 18), weight: .bold, design: .rounded).monospacedDigit()).foregroundColor(.white),
-                    at: CGPoint(x: rect.midX, y: rect.midY), anchor: .center
+                    Text("\(caption)  \(timeText)").font(.system(size: 13, weight: .bold, design: .rounded).monospacedDigit()).foregroundColor(.white),
+                    at: CGPoint(x: rect.maxX - NibbleZone.compactEdgePadding, y: rect.midY), anchor: .trailing
                 )
             }
             return

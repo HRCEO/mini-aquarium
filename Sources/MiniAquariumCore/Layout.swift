@@ -47,7 +47,20 @@ public struct NibbleZone {
         self.cellCount = max(cellCount, 1)
     }
 
+    /// 이보다 낮은 어항은 글씨와 띠를 한 줄 + 한 줄로 압축해 놓는다.
+    public static let compactHeight: CGFloat = 100
+    /// 납작한 어항에서 양 끝 둥근 모서리를 피하는 여백, 글씨 자리, 띠 두께
+    public static let compactEdgePadding: CGFloat = 28
+    public static let compactTextWidth: CGFloat = 138
+    public static let compactBarHeight: CGFloat = 10
+
     public static func make(shape: TankShape, layout: TankLayout, in rect: CGRect) -> NibbleZone {
+        if !layout.isBarVertical, rect.height < compactHeight {
+            // 납작한 Dock 어항: 오른쪽 끝에 글씨, 나머지 전체 길이(이어 붙인 양쪽 어항 모두)는 먹이 띠 한 줄.
+            let left = rect.minX + compactEdgePadding
+            let right = rect.maxX - compactEdgePadding - compactTextWidth
+            return NibbleZone(bar: CGRect(x: left, y: rect.midY - compactBarHeight / 2, width: max(right - left, 40), height: compactBarHeight), isVertical: false)
+        }
         guard layout.isBarVertical else {
             return NibbleZone(bar: shape.stripRect(in: rect, ratio: 1), isVertical: false)
         }
