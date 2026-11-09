@@ -1,6 +1,22 @@
 import CoreGraphics
 import Foundation
 
+/// 물고기마다 다른 헤엄 성격. 같은 종이어도 움직임이 제각각이 되게 한다.
+public struct SwimStyle {
+    /// 유영 속도 배율
+    public let speed = Double.random(in: 0.75...1.3)
+    /// 목적지에 머무는 시간 배율 (작으면 부산하고, 크면 느긋하다)
+    public let dwell = Double.random(in: 0.4...1.9)
+    /// 좋아하는 깊이 (0 = 수면, 1 = 바닥)
+    public let depth = Double.random(in: 0.1...0.85)
+    /// 선호 깊이 주변으로 퍼지는 정도
+    public let depthSpread = Double.random(in: 0.12...0.45)
+    /// 가로로 돌아다니는 범위 비율 (1에 가까우면 어항 전체를 누빈다)
+    public let roam = Double.random(in: 0.25...1)
+    /// 소품을 구경하러 가는 성향 배율
+    public let curiosity = Double.random(in: 0.4...2)
+}
+
 public struct Fish: Identifiable {
     public let id = UUID()
     public let species: Species
@@ -17,6 +33,9 @@ public struct Fish: Identifiable {
     /// 동굴/성 안에 들어가 있는가 (그림을 반투명하게 그린다)
     public var isInside = false
     public let phase = Double.random(in: 0..<(2 * .pi))
+    public let style = SwimStyle()
+    /// 주로 머무는 가로 위치 (0...1). 가끔 다른 곳으로 옮겨 간다.
+    var homeX = Double.random(in: 0...1)
     var target: CGPoint
     var retargetIn: Double = 0
 
@@ -75,6 +94,7 @@ public final class Simulation {
     private static let maxFoods = 24
     private static let foodLifetime = 15.0
     private static let eatDistance: CGFloat = 10
+    private static let arriveDistance: CGFloat = 10
 
     public init(tankRect: CGRect, shape: TankShape) {
         self.tankRect = tankRect
@@ -132,14 +152,6 @@ public final class Simulation {
         return Fish(species: species, pos: shape.clamp(point, in: tankRect, margin: bodySize(species) / 2))
     }
 
-    private func randomPoint(margin: CGFloat) -> CGPoint {
-        let point = CGPoint(
-            x: .random(in: tankRect.minX...tankRect.maxX),
-            y: .random(in: tankRect.minY...tankRect.maxY)
-        )
-        return shape.clamp(point, in: tankRect, margin: margin)
-    }
-
     private func stepFoods(_ dt: Double) {
         let floor = tankRect.maxY - 18
         foods = foods.compactMap { food in
@@ -184,7 +196,7 @@ public final class Simulation {
         var fish = input
         let species = fish.species
         var desired = fish.target
-        var cruise = species.speed * 0.6
+        var cruise = species.speed * 0.6 * CGFloat(fish.style.speed)
         fish.isNibbling = false
         if excitement > 0 { fish.retargetIn = min(fish.retargetIn, 0.5) }
         var nibbleSpot: NibbleZone.Spot?
@@ -247,10 +259,11 @@ public final class Simulation {
 
     /// 자유 유영: 가끔은 소품을 구경하러 가서 한동안 머문다.
     private func wander(_ fish: inout Fish) {
-        fish.retargetIn -= stepDelta
+        // 머무는 시간은 목적지에 도착한 뒤부터 센다. 긴 어항에서 도착도 못 하고 목적지가 바뀌면 제자리만 맴돈다.
+        if distance(fish.pos, fish.target) < Self.arriveDistance { fish.retargetIn -= stepDelta }
         guard fish.retargetIn <= 0 else { return }
         let margin = bodySize(fish.species) / 2
-        if let place = pickAttraction(for: fish.species) {
+        if let place = pickAttraction(for: fish.species, curiosity: fish.style.curiosity) {
             let jitter = place.isEnterable ? 4.0 : 12.0
             let spot = CGPoint(
                 x: place.pos.x + .random(in: -jitter...jitter),
@@ -258,16 +271,33 @@ public final class Simulation {
             )
             fish.target = shape.clamp(spot, in: tankRect, margin: margin)
             fish.visiting = place.decor
-            fish.retargetIn = .random(in: 5...9)
+            fish.retargetIn = Double.random(in: 5...9) * fish.style.dwell
         } else {
-            fish.target = randomPoint(margin: margin)
+            fish.target = stylePoint(&fish, margin: margin)
             fish.visiting = nil
-            fish.retargetIn = .random(in: 3...6)
+            fish.retargetIn = Double.random(in: 3...6) * fish.style.dwell
         }
     }
 
-    private func pickAttraction(for species: Species) -> Attraction? {
-        guard !attractions.isEmpty, Double.random(in: 0...1) < 0.3 else { return nil }
+    /// 물고기의 성격(선호 깊이, 활동 범위)에 맞춘 다음 목적지.
+    private func stylePoint(_ fish: inout Fish, margin: CGFloat) -> CGPoint {
+        let style = fish.style
+        // 가끔 활동 중심을 옮긴다. 오래 지켜보면 어항 구석구석에 가게 된다.
+        if Double.random(in: 0...1) < 0.2 { fish.homeX = .random(in: 0...1) }
+        let halfRange = style.roam / 2
+        let fractionX = min(max(fish.homeX + .random(in: -halfRange...halfRange), 0), 1)
+        // 두 난수의 평균으로 선호 깊이 주변에 모이는 분포를 만든다.
+        let bell = (Double.random(in: -1...1) + Double.random(in: -1...1)) / 2
+        let fractionY = min(max(style.depth + bell * style.depthSpread * 2, 0), 1)
+        let point = CGPoint(
+            x: tankRect.minX + tankRect.width * CGFloat(fractionX),
+            y: tankRect.minY + tankRect.height * CGFloat(fractionY)
+        )
+        return shape.clamp(point, in: tankRect, margin: margin)
+    }
+
+    private func pickAttraction(for species: Species, curiosity: Double) -> Attraction? {
+        guard !attractions.isEmpty, Double.random(in: 0...1) < min(0.3 * curiosity, 0.7) else { return nil }
         let weights = attractions.map { place -> Double in
             species == .clownfish && place.decor == .anemone ? 4 : 1
         }
