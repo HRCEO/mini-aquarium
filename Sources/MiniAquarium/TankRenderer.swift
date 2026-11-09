@@ -32,9 +32,8 @@ enum TankRenderer {
             drawSand(&layer, rect: rect)
             drawDecors(&layer, decors.filter { $0.layer < 2 }, rect: rect, shape: shape, time: t, scale: model.decorScale)
             drawBubbles(&layer, rect: rect, time: t)
-            if let timer = model.timer, model.settings.showTimerFood {
-                let ratio = timer.ratio(at: now)
-                drawStrip(&layer, zone: model.zone(ratio: ratio), ratio: ratio, nibblers: sim.fish.filter(\.isNibbling).map(\.pos))
+            if model.timer != nil, model.settings.showTimerFood {
+                drawStrip(&layer, zone: model.zone(), bites: sim.bites)
             }
             drawFish(&layer, sim: sim)
             drawDecors(&layer, decors.filter { $0.layer >= 2 }, rect: rect, shape: shape, time: t, scale: model.decorScale)
@@ -118,29 +117,50 @@ enum TankRenderer {
 
     private static func fraction(_ value: Double) -> Double { value - value.rounded(.down) }
 
-    private static func drawStrip(_ layer: inout GraphicsContext, zone: NibbleZone, ratio: Double, nibblers: [CGPoint]) {
+    private static func drawStrip(_ layer: inout GraphicsContext, zone: NibbleZone, bites: BiteField) {
         let bar = zone.bar
-        guard max(bar.width, bar.height) > 1 else { return }
         layer.drawLayer { strip in
             strip.fill(Path(roundedRect: bar, cornerRadius: 5), with: .color(Art.c(0.98, 0.78, 0.40)))
             let shine = zone.isVertical
                 ? CGRect(x: bar.minX, y: bar.minY, width: 4, height: bar.height)
                 : CGRect(x: bar.minX, y: bar.minY, width: bar.width, height: 4)
             strip.fill(Path(roundedRect: shine, cornerRadius: 2), with: .color(.white.opacity(0.35)))
-            // 갉아먹은 자국: 물고기가 지금 갉고 있는 자리에만 파인다. 시간이 갈수록 깊어진다.
+            // 갉아먹은 자리: 칸마다 먹힌 정도만큼 파내고, 구멍 가장자리는 둥글게 물어뜯은 모양을 낸다.
             strip.blendMode = .clear
-            let depth = 2.2 + (1 - ratio) * 2.6
-            for position in nibblers {
-                let x = min(max(position.x, bar.minX), bar.maxX)
-                let y = min(max(position.y, bar.minY), bar.maxY)
-                strip.fill(Art.circle(Art.p(x, y), depth * 1.3), with: .color(.black))
+            let thickness = zone.isVertical ? bar.width : bar.height
+            for cell in 0..<zone.cellCount {
+                let eaten = bites.eaten[cell]
+                guard eaten > 0 else { continue }
+                let rect = zone.cellRect(cell)
+                if eaten >= 1 {
+                    // 이웃 칸과 살짝 겹쳐 경계에 실선이 남지 않게 한다
+                    strip.fill(Path(rect.insetBy(dx: zone.isVertical ? -1 : -0.6, dy: zone.isVertical ? -0.6 : -1)), with: .color(.black))
+                    continue
+                }
+                // 물고기가 있는 옆면에서 안쪽으로 둥글게 파고들고, 다 먹히면 칸이 통째로 사라진다.
+                let depth = thickness * eaten * 1.1
+                let width = rect.width * (zone.isVertical ? 0 : 1) + rect.height * (zone.isVertical ? 1 : 0)
+                let span = width * 1.2 + thickness * 0.35
+                let edge = bites.sides[cell] == 0 ? 0.0 : 1.0
+                let center: CGPoint
+                let size: CGSize
+                if zone.isVertical {
+                    center = Art.p(edge == 0 ? bar.minX : bar.maxX, rect.midY)
+                    size = CGSize(width: depth * 2, height: span)
+                } else {
+                    center = Art.p(rect.midX, edge == 0 ? bar.minY : bar.maxY)
+                    size = CGSize(width: span, height: depth * 2)
+                }
+                strip.fill(Path(ellipseIn: CGRect(x: center.x - size.width / 2, y: center.y - size.height / 2, width: size.width, height: size.height)), with: .color(.black))
             }
-            let endX = zone.isVertical ? bar.midX : bar.maxX
-            let endY = zone.isVertical ? bar.maxY : bar.midY
-            for step in 0..<3 {
-                let offset = (CGFloat(step) - 1) * 4
-                let c = zone.isVertical ? Art.p(endX + offset, endY) : Art.p(endX, endY + offset)
-                strip.fill(Art.circle(c, 3.5), with: .color(.black))
+            // 구멍 가장자리를 들쭉날쭉하게
+            for cell in 1..<zone.cellCount {
+                let before = bites.eaten[cell - 1] >= 1, after = bites.eaten[cell] >= 1
+                guard before != after else { continue }
+                let rect = zone.cellRect(cell)
+                let jitter = CGFloat(Art.noise(Double(cell) * 3.1) - 0.5) * thickness * 0.6
+                let edge = zone.isVertical ? Art.p(bar.midX + jitter, rect.minY) : Art.p(rect.minX, bar.midY + jitter)
+                strip.fill(Art.circle(edge, thickness * (0.22 + 0.16 * CGFloat(Art.noise(Double(cell) * 7.7)))), with: .color(.black))
             }
         }
     }
@@ -180,10 +200,6 @@ enum TankRenderer {
     private static func drawGlass(_ context: inout GraphicsContext, outline: Path, rect: CGRect) {
         context.stroke(outline, with: .color(.white.opacity(0.55)), lineWidth: 3)
         context.stroke(outline.strokedPath(StrokeStyle(lineWidth: 1)), with: .color(.black.opacity(0.15)), lineWidth: 0.5)
-        var shine = Path()
-        shine.move(to: CGPoint(x: rect.minX + 16, y: rect.minY + rect.height * 0.55))
-        shine.addLine(to: CGPoint(x: rect.minX + 16, y: rect.minY + rect.height * 0.3))
-        context.stroke(shine, with: .color(.white.opacity(0.35)), style: StrokeStyle(lineWidth: 3, lineCap: .round))
     }
 
     // MARK: - Timer finished

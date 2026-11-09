@@ -144,7 +144,7 @@ struct SimulationTests {
     func fishGatherAtNibblePoint() {
         let sim = makeSimulation()
         sim.setFish([.tetra, .goldfish])
-        let zone = NibbleZone.make(shape: .rounded, layout: .standard, in: sim.tankRect, ratio: 0.8)
+        let zone = NibbleZone.make(shape: .rounded, layout: .standard, in: sim.tankRect)
         sim.nibbleZone = zone
         for _ in 0..<(30 * 10) { sim.step(1.0 / 30) }
         let area = zone.bar.insetBy(dx: -50, dy: -50)
@@ -203,22 +203,54 @@ struct SettingsStoreTests {
 
 @Suite("Layout / Attractions")
 struct LayoutTests {
-    @Test("세로 레이아웃의 시간 띠는 세로이고 비율만큼 줄어든다")
-    func slimBarShrinks() {
+    @Test("세로 레이아웃의 시간 띠는 세로로 놓인다")
+    func slimBarIsVertical() {
         let rect = TankShape.rounded.rect(in: TankLayout.slim.logicalSize)
-        let full = NibbleZone.make(shape: .rounded, layout: .slim, in: rect, ratio: 1)
-        let half = NibbleZone.make(shape: .rounded, layout: .slim, in: rect, ratio: 0.5)
-        #expect(full.isVertical)
-        #expect(half.bar.minY == full.bar.minY)
-        #expect(abs(half.bar.height - full.bar.height / 2) < 0.001)
+        let zone = NibbleZone.make(shape: .rounded, layout: .slim, in: rect)
+        #expect(zone.isVertical)
+        #expect(zone.bar.height > zone.bar.width)
     }
 
-    @Test("물고기는 끝과 양쪽 면 등 서로 다른 자리에서 갉는다", arguments: [TankLayout.standard, .slim])
-    func spotsVary(layout: TankLayout) {
-        let rect = TankShape.rounded.rect(in: layout.logicalSize)
-        let zone = NibbleZone.make(shape: .rounded, layout: layout, in: rect, ratio: 0.7)
-        let centers = (0..<3).map { zone.spot(index: $0, size: 30, phase: 0, time: 0).center }
-        #expect(Set(centers.map { "\($0.x.rounded()),\($0.y.rounded())" }).count == 3)
+    @Test("먹히는 순서는 모든 칸을 한 번씩 포함하고 타이머마다 다르다")
+    func patternCoversAllCells() {
+        let a = BitePattern(), b = BitePattern()
+        #expect(Set(a.order).count == a.cellCount)
+        #expect(a.order != b.order)
+        #expect(a.order != Array(0..<a.cellCount))
+    }
+
+    @Test("물고기가 갉은 만큼만 칸이 줄고 한 칸은 한 마리가 맡는다")
+    func bitingReducesTotal() {
+        var field = BiteField()
+        var generator = SystemRandomNumberGenerator()
+        let first = field.claim(forFish: 0, crew: 2, using: &generator)
+        let second = field.claim(forFish: 1, crew: 2, using: &generator)
+        #expect(first != nil && second != nil && first != second)
+        field.bite(cell: first!, amount: 0.4)
+        #expect(abs(field.total - 0.4) < 0.0001)
+        field.bite(cell: first!, amount: 5)
+        #expect(field.eaten[first!] == 1)
+        // 다 먹힌 칸은 새 칸으로 바뀐다
+        #expect(field.claim(forFish: 0, crew: 2, using: &generator) != first)
+    }
+
+    @Test("미리 먹힌 칸 수만큼 채운다")
+    func presetFillsInOrder() {
+        var field = BiteField()
+        field.preset(cells: 10.5)
+        #expect(abs(field.total - 10.5) < 0.0001)
+    }
+
+    @Test("타이머 중 먹이가 있으면 띠를 갉지 않는다")
+    func foodPausesNibbling() {
+        let sim = makeSimulation()
+        sim.setFish([.tetra])
+        sim.nibbleZone = NibbleZone.make(shape: .rounded, layout: .standard, in: sim.tankRect)
+        sim.nibbleRate = 1
+        sim.dropFood(at: CGPoint(x: sim.tankRect.midX, y: sim.tankRect.midY))
+        let before = sim.bites.total
+        sim.step(1.0 / 30)
+        #expect(sim.bites.total == before)
     }
 
     @Test("소품이 있으면 물고기가 구경하러 간다")

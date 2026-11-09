@@ -37,6 +37,7 @@ enum Snapshot {
         if let ratio = timerRatio {
             let total = 600.0
             model.startTimer(TimerState(start: now.addingTimeInterval(-total * (1 - ratio)), duration: total))
+            model.sim.resetBites(cellsAlreadyEaten: (1 - ratio) * Double(BitePattern.defaultCellCount))
         }
         if arguments.contains("--feed") {
             model.feed(at: CGPoint(x: model.tankRect.midX, y: model.tankRect.minY + 60))

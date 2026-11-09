@@ -79,6 +79,12 @@ public final class Simulation {
 
     /// 타이머 모드에서 물고기가 갉아먹는 시간 띠. nil이면 자유 유영.
     public var nibbleZone: NibbleZone?
+    /// 띠의 칸별 먹힌 정도. 물고기가 갉는 만큼만 줄어든다.
+    public private(set) var bites = BiteField()
+    /// 지금까지 먹혔어야 하는 칸 수 (시간 비율에 따른 목표). 뒤처지면 물고기가 더 빨리 갉아 따라잡는다.
+    public var nibbleTarget: Double = 0
+    /// 목표가 늘어나는 속도 (칸/초)
+    public var nibbleRate: Double = 0
     /// 이어 붙인 어항의 이음매 위치 (긴 축 좌표). 물고기가 지나가면 포털을 빠져나온 듯 빨라진다.
     public var seam: (position: CGFloat, vertical: Bool)?
     /// 물고기가 구경하러 가는 소품들
@@ -91,6 +97,7 @@ public final class Simulation {
     /// 0...1. 타이머 종료 직후처럼 물고기가 들떠서 빠르게 돌아다닌다.
     public var excitement: Double = 0
     private var stepDelta: Double = 0
+    private var generator = SystemRandomNumberGenerator()
     private static let maxFoods = 24
     private static let foodLifetime = 15.0
     private static let eatDistance: CGFloat = 10
@@ -121,6 +128,12 @@ public final class Simulation {
             }
             return spawn(wanted)
         }
+    }
+
+    /// 새 타이머를 시작한다. 띠가 사라질 순서를 새로 뽑는다.
+    public func resetBites(cellsAlreadyEaten: Double = 0) {
+        bites = BiteField()
+        bites.preset(cells: cellsAlreadyEaten)
     }
 
     public func dropFood(at point: CGPoint, kind: FoodKind = .pellets) {
@@ -175,6 +188,13 @@ public final class Simulation {
         }
     }
 
+    /// 갉고 있는 물고기 한 마리가 한 프레임에 먹는 칸 수. 전체 속도가 시간 흐름과 맞고, 뒤처졌으면 더 빨리 먹는다.
+    private func nibbleAmount(_ dt: Double) -> Double {
+        let crew = Double(max(fish.filter(\.isNibbling).count, 1))
+        let gain = min(max(1 + (nibbleTarget - bites.total) * 0.5, 0.15), 8)
+        return nibbleRate * gain / crew * dt
+    }
+
     private func nearestFoodIndex(to point: CGPoint) -> Int? {
         foods.indices.min { distance(foods[$0].pos, point) < distance(foods[$1].pos, point) }
     }
@@ -200,6 +220,7 @@ public final class Simulation {
         fish.isNibbling = false
         if excitement > 0 { fish.retargetIn = min(fish.retargetIn, 0.5) }
         var nibbleSpot: NibbleZone.Spot?
+        var biteCell = 0, biteAmount = 0.0
         fish.eatPulse = max(0, fish.eatPulse - dt)
         fish.dash = max(0, fish.dash - dt / 1.2)
 
@@ -220,11 +241,12 @@ public final class Simulation {
                 }
                 if foods[foodIndex].remaining <= 0 { foods.remove(at: foodIndex) }
             }
-        } else if let zone = nibbleZone {
-            let spot = zone.spot(index: index, size: bodySize(species), phase: fish.phase, time: time)
+        } else if let zone = nibbleZone, let cell = bites.claim(forFish: index, crew: self.fish.count, using: &generator) {
+            let spot = zone.spot(cell: cell, index: index, size: bodySize(species))
             desired = spot.center
             cruise = species.speed * 1.4
             fish.isNibbling = distance(fish.pos, spot.center) < 8
+            if fish.isNibbling { biteAmount = nibbleAmount(dt) ; biteCell = cell }
             fish.visiting = nil
             nibbleSpot = spot
         } else {
@@ -235,6 +257,7 @@ public final class Simulation {
                 desired.y += CGFloat(cos(time * 1.1 + fish.phase)) * 3
             }
         }
+        if biteAmount > 0 { bites.bite(cell: biteCell, amount: biteAmount, side: index % 2) }
         fish.isInside = fish.visiting.map { $0 == .cave || $0 == .castle } == true && distance(fish.pos, fish.target) < 14
 
         steer(&fish, toward: desired, cruise: cruise * CGFloat(1 + excitement * 1.6 + fish.dash * 1.8), dt: dt)

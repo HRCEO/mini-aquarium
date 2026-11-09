@@ -82,8 +82,8 @@ final class AquariumModel: ObservableObject {
         SettingsStore.save(next)
     }
 
-    func zone(ratio: Double) -> NibbleZone {
-        NibbleZone.make(shape: shape, layout: effectiveLayout, in: tankRect, ratio: ratio)
+    func zone() -> NibbleZone {
+        NibbleZone.make(shape: shape, layout: effectiveLayout, in: tankRect)
     }
 
     /// 물고기가 구경하러 갈 소품 위치. 동굴/성은 안쪽, 나머지는 소품 중간 높이.
@@ -112,6 +112,7 @@ final class AquariumModel: ObservableObject {
     }
 
     func startTimer(_ state: TimerState) {
+        sim.resetBites()
         timer = state
         bannerUntil = nil
     }
@@ -157,7 +158,10 @@ final class AquariumModel: ObservableObject {
             if active.isFinished(at: now) {
                 finishTimer(at: now)
             } else {
-                sim.nibbleZone = settings.showTimerFood ? zone(ratio: active.ratio(at: now)) : nil
+                sim.nibbleZone = settings.showTimerFood ? zone() : nil
+                let cells = Double(BitePattern.defaultCellCount)
+                sim.nibbleTarget = (1 - active.ratio(at: now)) * cells
+                sim.nibbleRate = cells / max(active.duration, 1)
             }
         }
         if let until = bannerUntil, now >= until { bannerUntil = nil }

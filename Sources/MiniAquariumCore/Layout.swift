@@ -34,30 +34,39 @@ public enum TankLayout: String, Codable, CaseIterable {
     public var isBarVertical: Bool { self == .slim }
 }
 
-/// 시간 띠의 위치/크기. 비율만큼 줄어든다.
+/// 시간 띠의 위치/크기. 띠는 처음 길이 그대로 놓이고, 칸 단위로 물고기에게 갉아먹힌다.
 public struct NibbleZone {
+    /// 처음(가득 찼을 때) 띠 전체의 영역
     public let bar: CGRect
     public let isVertical: Bool
+    public let cellCount: Int
 
-    public init(bar: CGRect, isVertical: Bool) {
+    public init(bar: CGRect, isVertical: Bool, cellCount: Int = BitePattern.defaultCellCount) {
         self.bar = bar
         self.isVertical = isVertical
+        self.cellCount = max(cellCount, 1)
     }
 
-    public static func make(shape: TankShape, layout: TankLayout, in rect: CGRect, ratio: Double) -> NibbleZone {
+    public static func make(shape: TankShape, layout: TankLayout, in rect: CGRect) -> NibbleZone {
         guard layout.isBarVertical else {
-            return NibbleZone(bar: shape.stripRect(in: rect, ratio: ratio), isVertical: false)
+            return NibbleZone(bar: shape.stripRect(in: rect, ratio: 1), isVertical: false)
         }
         let top = shape.headerY(in: rect) + 34
         let maxHeight = max(rect.maxY - 46 - top, 40)
-        let clamped = CGFloat(min(max(ratio, 0), 1))
-        return NibbleZone(
-            bar: CGRect(x: rect.midX - 6, y: top, width: 12, height: maxHeight * clamped),
-            isVertical: true
-        )
+        return NibbleZone(bar: CGRect(x: rect.midX - 6, y: top, width: 12, height: maxHeight), isVertical: true)
     }
 
-    /// 물고기가 띠를 갉아먹을 자리. 첫 마리만 끝(0)을 맡고, 나머지는 한쪽 면(1)·반대쪽 면(2)에 번갈아 앉는다.
+    /// 띠를 따라 잰 한 칸의 길이
+    public var cellLength: CGFloat { (isVertical ? bar.height : bar.width) / CGFloat(cellCount) }
+
+    public func cellRect(_ cell: Int) -> CGRect {
+        let offset = CGFloat(cell) * cellLength
+        return isVertical
+            ? CGRect(x: bar.minX, y: bar.minY + offset, width: bar.width, height: cellLength)
+            : CGRect(x: bar.minX + offset, y: bar.minY, width: cellLength, height: bar.height)
+    }
+
+    /// 물고기가 띠를 갉아먹을 자리.
     public struct Spot {
         public let center: CGPoint
         public let bite: CGPoint
@@ -65,45 +74,20 @@ public struct NibbleZone {
         public let facesLeft: Bool
     }
 
-    public func spot(index: Int, size: CGFloat, phase: Double, time: Double) -> Spot {
-        let side = index == 0 ? 0 : 1 + (index - 1) % 2
+    /// `cell`을 갉는 `index`번 물고기의 자리. 물고기마다 띠의 위/아래(세로면 좌/우) 면을 번갈아 쓴다.
+    public func spot(cell: Int, index: Int, size: CGFloat) -> Spot {
+        let rect = cellRect(cell)
+        let upper = index % 2 == 0
         let leftward = (index / 2) % 2 == 1
-        // 물고기마다 다른 속도로 띠 전체를 천천히 오가며 갉는다 (한쪽에 몰리지 않게)
-        let pace = 0.07 + 0.05 * Self.fraction(Double(index) * 3.7 + 0.9)
-        let sweep = 0.5 + 0.5 * sin(time * pace + phase + Double(index) * 2.1)
-        let f = CGFloat(0.06 + 0.9 * sweep)
-        let r = bar
         let sx: CGFloat = leftward ? 1 : -1   // 몸이 코에서 얼마나 떨어져 있는지의 부호
 
         if !isVertical {
-            switch side {
-            case 0:
-                let bite = CGPoint(x: r.maxX, y: r.midY)
-                return Spot(center: CGPoint(x: bite.x + size * 0.5, y: bite.y), bite: bite, tilt: 0, facesLeft: true)
-            case 1:
-                let bite = CGPoint(x: r.minX + r.width * f, y: r.minY)
-                return Spot(center: CGPoint(x: bite.x + sx * size * 0.33, y: bite.y - size * 0.38), bite: bite, tilt: 0.85, facesLeft: leftward)
-            default:
-                let bite = CGPoint(x: r.minX + r.width * f, y: r.maxY)
-                return Spot(center: CGPoint(x: bite.x + sx * size * 0.33, y: bite.y + size * 0.38), bite: bite, tilt: -0.85, facesLeft: leftward)
-            }
+            let bite = CGPoint(x: rect.midX, y: upper ? bar.minY : bar.maxY)
+            let dy = size * 0.38 * (upper ? -1 : 1)
+            return Spot(center: CGPoint(x: bite.x + sx * size * 0.33, y: bite.y + dy), bite: bite, tilt: upper ? 0.85 : -0.85, facesLeft: leftward)
         }
-        switch side {
-        case 0:
-            let bite = CGPoint(x: r.midX, y: r.maxY)
-            return Spot(center: CGPoint(x: bite.x, y: bite.y + size * 0.5), bite: bite, tilt: -1.35, facesLeft: false)
-        case 1:
-            let bite = CGPoint(x: r.minX, y: r.minY + r.height * f)
-            return Spot(center: CGPoint(x: bite.x - size * 0.5, y: bite.y), bite: bite, tilt: 0, facesLeft: false)
-        default:
-            let bite = CGPoint(x: r.maxX, y: r.minY + r.height * f)
-            return Spot(center: CGPoint(x: bite.x + size * 0.5, y: bite.y), bite: bite, tilt: 0, facesLeft: true)
-        }
-    }
-
-    private static func fraction(_ seed: Double) -> Double {
-        let value = sin(seed * 12.9898) * 43758.5453
-        return value - value.rounded(.down)
+        let bite = CGPoint(x: upper ? bar.minX : bar.maxX, y: rect.midY)
+        return Spot(center: CGPoint(x: bite.x + (upper ? -1 : 1) * size * 0.5, y: bite.y), bite: bite, tilt: 0, facesLeft: !upper)
     }
 }
 

@@ -183,7 +183,7 @@ struct SettingsPanel: View {
                 Nudger(value: "\(settings.timerMinutes / 60)", unit: tr("시간", "hr"),
                        minus: { shiftMinutes(-60) }, plus: { shiftMinutes(60) })
                 Nudger(value: "\(settings.timerMinutes % 60)", unit: tr("분", "min"),
-                       minus: { shiftMinutes(-5) }, plus: { shiftMinutes(5) })
+                       minus: { shiftMinutes(-1) }, plus: { shiftMinutes(1) })
             }
             .frame(maxWidth: .infinity)
             HStack(spacing: 6) {
@@ -206,7 +206,7 @@ struct SettingsPanel: View {
                 Nudger(value: String(format: "%02d", minute / 60), unit: tr("시", "hr"),
                        minus: { shiftTarget(-60) }, plus: { shiftTarget(60) })
                 Nudger(value: String(format: "%02d", minute % 60), unit: tr("분", "min"),
-                       minus: { shiftTarget(-5) }, plus: { shiftTarget(5) })
+                       minus: { shiftTarget(-1) }, plus: { shiftTarget(1) })
             }
             .frame(maxWidth: .infinity)
             HStack(spacing: 6) {
