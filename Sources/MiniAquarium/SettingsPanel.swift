@@ -181,9 +181,11 @@ struct SettingsPanel: View {
         VStack(spacing: 14) {
             HStack(spacing: 18) {
                 Nudger(value: "\(settings.timerMinutes / 60)", unit: tr("시간", "hr"),
-                       minus: { shiftMinutes(-60) }, plus: { shiftMinutes(60) })
+                       minus: { shiftMinutes(-60) }, plus: { shiftMinutes(60) },
+                       commit: { setMinutes(hours: $0, minutes: settings.timerMinutes % 60) })
                 Nudger(value: "\(settings.timerMinutes % 60)", unit: tr("분", "min"),
-                       minus: { shiftMinutes(-1) }, plus: { shiftMinutes(1) })
+                       minus: { shiftMinutes(-1) }, plus: { shiftMinutes(1) },
+                       commit: { setMinutes(hours: settings.timerMinutes / 60, minutes: $0) })
             }
             .frame(maxWidth: .infinity)
             HStack(spacing: 6) {
@@ -204,9 +206,11 @@ struct SettingsPanel: View {
         return VStack(spacing: 14) {
             HStack(spacing: 18) {
                 Nudger(value: String(format: "%02d", minute / 60), unit: tr("시", "hr"),
-                       minus: { shiftTarget(-60) }, plus: { shiftTarget(60) })
+                       minus: { shiftTarget(-60) }, plus: { shiftTarget(60) },
+                       commit: { setTarget(hour: $0, minute: minute % 60) })
                 Nudger(value: String(format: "%02d", minute % 60), unit: tr("분", "min"),
-                       minus: { shiftTarget(-1) }, plus: { shiftTarget(1) })
+                       minus: { shiftTarget(-1) }, plus: { shiftTarget(1) },
+                       commit: { setTarget(hour: minute / 60, minute: $0) })
             }
             .frame(maxWidth: .infinity)
             HStack(spacing: 6) {
@@ -223,6 +227,16 @@ struct SettingsPanel: View {
 
     private func shiftMinutes(_ delta: Int) {
         model.update { $0.with(timerMinutes: $0.timerMinutes + delta) }
+    }
+
+    /// 키보드 입력: 분 칸에 90을 쳐도 총 시간으로 합산하고, 전체 범위(1분~10시간)로 보정된다.
+    private func setMinutes(hours: Int, minutes: Int) {
+        model.update { $0.with(timerMinutes: hours * 60 + minutes) }
+    }
+
+    /// 키보드 입력: 시는 0~23, 분은 0~59로 보정한다.
+    private func setTarget(hour: Int, minute: Int) {
+        model.update { $0.with(targetMinuteOfDay: min(max(hour, 0), 23) * 60 + min(max(minute, 0), 59)) }
     }
 
     private func shiftTarget(_ delta: Int) {
@@ -544,17 +558,53 @@ private struct ToggleRow: View {
 }
 
 /// 큰 숫자 + 위아래 조절 버튼.
+/// 눌러서 바로 숫자를 칠 수 있는 큰 숫자 칸. Return이나 포커스를 잃을 때 반영하고, 숫자가 아니면 원래 값으로 되돌린다.
+private struct NumberField: View {
+    let value: String
+    let commit: (Int) -> Void
+    @State private var text = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        TextField("", text: $text)
+            .textFieldStyle(.plain)
+            .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
+            .multilineTextAlignment(.center)
+            .frame(width: 52)
+            .focused($isFocused)
+            .onAppear { text = value }
+            .onChange(of: value) { new in if !isFocused { text = new } }
+            .onChange(of: text) { new in
+                let digits = String(new.filter(\.isNumber).prefix(3))
+                if digits != new { text = digits }
+            }
+            .onChange(of: isFocused) { focused in
+                if focused { text = "" } else { apply() }
+            }
+            .onSubmit { isFocused = false }
+    }
+
+    private func apply() {
+        if let number = Int(text) { commit(number) }
+        text = value
+        // 반영 결과(범위 보정 등)가 value에 늦게 도착할 수 있어 한 번 더 맞춘다.
+        DispatchQueue.main.async { if !isFocused { text = value } }
+    }
+}
+
 private struct Nudger: View {
     let value: String
     let unit: String
     let minus: () -> Void
     let plus: () -> Void
+    /// 키보드로 직접 입력한 숫자를 받는다.
+    let commit: (Int) -> Void
 
     var body: some View {
         HStack(spacing: 8) {
             round("minus", minus)
             HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(value).font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
+                NumberField(value: value, commit: commit)
                 Text(unit).font(.system(size: 12)).foregroundStyle(.secondary)
             }
             .frame(minWidth: 62)
