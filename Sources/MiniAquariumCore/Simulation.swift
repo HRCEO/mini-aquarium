@@ -218,7 +218,7 @@ public final class Simulation {
         } else {
             wander(&fish)
             desired = fish.target
-            if fish.visiting != nil, distance(fish.pos, fish.target) < 10 {
+            if distance(fish.pos, fish.target) < 10 {
                 desired.x += CGFloat(sin(time * 1.3 + fish.phase)) * 6
                 desired.y += CGFloat(cos(time * 1.1 + fish.phase)) * 3
             }
@@ -248,9 +248,7 @@ public final class Simulation {
     /// 자유 유영: 가끔은 소품을 구경하러 가서 한동안 머문다.
     private func wander(_ fish: inout Fish) {
         fish.retargetIn -= stepDelta
-        let arrived = distance(fish.pos, fish.target) < 8
-        let lingering = fish.visiting != nil && arrived
-        guard fish.retargetIn <= 0 || (arrived && !lingering) else { return }
+        guard fish.retargetIn <= 0 else { return }
         let margin = bodySize(fish.species) / 2
         if let place = pickAttraction(for: fish.species) {
             let jitter = place.isEnterable ? 4.0 : 12.0
@@ -264,12 +262,12 @@ public final class Simulation {
         } else {
             fish.target = randomPoint(margin: margin)
             fish.visiting = nil
-            fish.retargetIn = .random(in: 2...5)
+            fish.retargetIn = .random(in: 3...6)
         }
     }
 
     private func pickAttraction(for species: Species) -> Attraction? {
-        guard !attractions.isEmpty, Double.random(in: 0...1) < 0.45 else { return nil }
+        guard !attractions.isEmpty, Double.random(in: 0...1) < 0.3 else { return nil }
         let weights = attractions.map { place -> Double in
             species == .clownfish && place.decor == .anemone ? 4 : 1
         }
