@@ -28,16 +28,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var menuController: MenuController!
     private let popover = NSPopover()
     private var clockTimer: Timer?
-    private var dockTimer: Timer?
-    private var screenObserver: NSObjectProtocol?
+    private var dockMonitor: DockMonitor?
     private var settingsObserver: AnyCancellable?
     private var appliedMode: DisplayMode?
     private var iconFrames: [NSImage] = []
     private var iconSpecies: Species?
     private var iconTick = 0
-    private var dockRegion: DockRegion?
     private var wasDocked = false
-    private static let dockRefreshInterval = 0.5  // 앱 실행/종료로 Dock이 늘고 줄면 어항도 따라간다
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -79,12 +76,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         clockTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tickStatusItem() }
         }
-        dockTimer = Timer.scheduledTimer(withTimeInterval: Self.dockRefreshInterval, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refreshDock() }
-        }
-        screenObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
-        ) { [weak self] _ in MainActor.assumeIsolated { self?.refreshDock() } }
+        dockMonitor = DockMonitor { [weak self] in self?.refreshDock() }
+        dockMonitor?.start()
     }
 
     /// 같은 앱(번들 ID 또는 실행 파일 이름이 같은)이 더 먼저 떠 있으면 true.
@@ -106,8 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         clockTimer?.invalidate()
-        dockTimer?.invalidate()
-        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
+        dockMonitor?.stop()
     }
 
     // MARK: - Mode handling
@@ -144,8 +136,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     /// '양쪽'이면 두 빈 자리를 Dock 너머로 이어 하나의 긴 어항처럼 보여준다.
     private func refreshDock() {
         let settings = model.settings
-        guard settings.displayMode == .floating, settings.dockFit, let region = DockPlacement.current(gap: CGFloat(settings.dockGap)) else {
-            dockRegion = nil
+        guard settings.displayMode == .floating, settings.dockFit,
+              let region = DockPlacement.current(gap: CGFloat(settings.dockGap)),
+              let layout = DockLayout(region: region, edge: settings.dockEdge)
+        else {
             model.setDockedSize(nil)
             model.setSeam(nil, vertical: false)
             mirrorPanel.orderOut(nil)
@@ -153,34 +147,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             if wasDocked { wasDocked = false; restoreSavedFrame() }
             return
         }
-        dockRegion = region
         wasDocked = true
-        let strips = region.strips(for: settings.dockEdge)
-        guard let first = strips.first else { return }
-        let thickness = strips.map { region.isVertical ? $0.width : $0.height }.min() ?? 0
-        func panelSize(_ strip: CGRect) -> CGSize {
-            region.isVertical ? CGSize(width: thickness, height: strip.height) : CGSize(width: strip.width, height: thickness)
-        }
-        let sizes = strips.map(panelSize)
-        // 두 띠를 하나로 이은 긴 어항: 길이는 더하고, 각 창은 그 일부분만 보여준다.
-        let total = sizes.reduce(0) { $0 + (region.isVertical ? $1.height : $1.width) }
-        let world = region.isVertical ? CGSize(width: thickness, height: total) : CGSize(width: total, height: thickness)
-        model.setDockedSize(world)
-        model.setSeam(strips.count > 1 ? (region.isVertical ? sizes[0].height : sizes[0].width) : nil, vertical: region.isVertical)
-        var offset: CGFloat = 0
-        var viewports: [CGRect] = []
-        for size in sizes {
-            viewports.append(CGRect(origin: region.isVertical ? CGPoint(x: 0, y: offset) : CGPoint(x: offset, y: 0), size: size))
-            offset += region.isVertical ? size.height : size.width
-        }
-        place(panel, in: first, size: sizes[0], region: region)
-        let joined = strips.count > 1 && panel.isVisible
-        let leading: Edge = region.isVertical ? .bottom : .trailing
-        let trailing: Edge = region.isVertical ? .top : .leading
-        setViewport(of: panel, viewports[0], portal: joined ? leading : nil)
-        if strips.count > 1, panel.isVisible {
-            place(mirrorPanel, in: strips[1], size: sizes[1], region: region)
-            setViewport(of: mirrorPanel, viewports[1], portal: trailing)
+        model.setDockedSize(layout.world)
+        model.setSeam(layout.seam, vertical: layout.isVertical)
+
+        // 위치·크기 계산은 DockLayout(Core)이 하고, 여기서는 창에 적용만 한다.
+        let first = layout.panels[0]
+        setFrame(of: panel, first.frame)
+        let isJoined = layout.panels.count > 1 && panel.isVisible
+        let leading: Edge = layout.isVertical ? .bottom : .trailing
+        let trailing: Edge = layout.isVertical ? .top : .leading
+        setViewport(of: panel, first.viewport, portal: isJoined ? leading : nil)
+        if isJoined {
+            let second = layout.panels[1]
+            setFrame(of: mirrorPanel, second.frame)
+            setViewport(of: mirrorPanel, second.viewport, portal: trailing)
             mirrorPanel.orderFrontRegardless()
         } else {
             mirrorPanel.orderOut(nil)
@@ -193,16 +174,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         host.rootView = TankView(model: model, viewport: viewport, portal: portal)
     }
 
-    /// 띠 안에서 Dock 아이콘 줄 반대쪽(화면 가장자리) 쪽으로 붙인다.
-    private func place(_ target: AquariumPanel, in strip: CGRect, size: CGSize, region: DockRegion) {
-        let isBefore = strip == region.before
-        let origin: NSPoint
-        if region.isVertical {
-            origin = NSPoint(x: strip.minX, y: isBefore ? strip.maxY - size.height : strip.minY)
-        } else {
-            origin = NSPoint(x: isBefore ? strip.minX : strip.maxX - size.width, y: strip.minY)
-        }
-        let frame = NSRect(origin: origin, size: size)
+    /// 폴링으로 자주 불리므로 프레임이 같으면 창을 건드리지 않는다.
+    private func setFrame(of target: AquariumPanel, _ frame: CGRect) {
         if target.frame != frame { target.setFrame(frame, display: true) }
     }
 

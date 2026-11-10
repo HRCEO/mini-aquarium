@@ -19,14 +19,16 @@ final class AquariumModel: ObservableObject {
     let sim: Simulation
     weak var window: NSWindow?
 
+    private let eventHandlers: [AquariumEventHandler]
     private var ticker: Timer?
     private var lastTick = Date()
     private var dragStartMouse: NSPoint?
     private var dragStartOrigin: NSPoint = .zero
     private var didDrag = false
 
-    init(settings: AquariumSettings = SettingsStore.load()) {
+    init(settings: AquariumSettings = SettingsStore.load(), eventHandlers: [AquariumEventHandler] = [SoundAlert()]) {
         self.settings = settings
+        self.eventHandlers = eventHandlers
         L10n.current = settings.language
         let rect = settings.shape.rect(in: settings.layout.logicalSize)
         sim = Simulation(tankRect: rect, shape: settings.shape)
@@ -179,7 +181,11 @@ final class AquariumModel: ObservableObject {
         timer = nil
         sim.nibbleZone = nil
         bannerUntil = now.addingTimeInterval(Self.bannerDuration)
-        NSSound(named: "Glass")?.play()
+        emit(.timerFinished)
+    }
+
+    private func emit(_ event: AquariumEvent) {
+        eventHandlers.forEach { $0.handle(event) }
     }
 
     // MARK: - Window drag vs. tap (클릭=먹이, 드래그=창 이동)

@@ -243,8 +243,8 @@ struct LayoutTests {
 
     @Test("타이머 중 먹이가 있으면 띠를 갉지 않는다")
     func foodPausesNibbling() {
-        let sim = makeSimulation()
-        sim.setFish([.tetra])
+        let sim = Simulation(tankRect: TankShape.rounded.rect(in: TankLayout.standard.logicalSize), shape: .rounded)
+        sim.setFish([Species.tetra])
         sim.nibbleZone = NibbleZone.make(shape: .rounded, layout: .standard, in: sim.tankRect)
         sim.nibbleRate = 1
         sim.dropFood(at: CGPoint(x: sim.tankRect.midX, y: sim.tankRect.midY))
