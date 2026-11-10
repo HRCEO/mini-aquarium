@@ -380,6 +380,21 @@ struct SettingsPanel: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
         }
+        if let supportURL = AppInfo.supportURL {
+            Section(tr("후원", "Support")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(tr("미니 어항이 마음에 드셨다면 커피 한 잔으로 응원해 주세요.", "If you enjoy Mini Aquarium, you can buy me a coffee."))
+                        .font(.caption).foregroundStyle(.secondary)
+                    Link(destination: supportURL) {
+                        Label(tr("Ko-fi에서 후원하기", "Support on Ko-fi"), systemImage: "cup.and.saucer.fill")
+                            .font(.system(size: 12.5, weight: .medium))
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+            }
+        }
     }
 
     private func setLaunchAtLogin(_ on: Bool) {

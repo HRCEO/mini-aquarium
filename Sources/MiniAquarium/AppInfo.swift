@@ -4,6 +4,8 @@ import ServiceManagement
 enum AppInfo {
     static let author = "HRCEO"
     static let email = "hrceolee@gmail.com"
+    /// 후원 페이지 (Ko-fi). README, .github/FUNDING.yml과 같은 주소를 써요.
+    static let supportURL = URL(string: "https://ko-fi.com/hrceo")
     static let version = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "1.0.0"
 }
 

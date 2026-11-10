@@ -89,5 +89,6 @@ swift test                    # 코어 로직 테스트 (Swift Testing, Xcode �
 ## 제작
 
 - 제작자: HRCEO · hrceolee@gmail.com
-- 버전: 1.0.0
+- 버전: 1.0.1
 - 라이선스: [MIT](LICENSE) © 2026 HRCEO
+- 후원: 미니 어항이 마음에 드셨다면 [Ko-fi에서 커피 한 잔](https://ko-fi.com/hrceo)으로 응원해 주세요. 후원하지 않아도 모든 기능을 똑같이 쓸 수 있어요.
