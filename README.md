@@ -25,12 +25,6 @@ Mac 화면 한쪽, **Dock 옆 빈 자리**에 떠다니는 작은 어항이에�
 
 **[최신 릴리스 받기 →](https://github.com/HRCEO/mini-aquarium/releases/latest)** 페이지의 *Assets*에서 `MiniAquarium-x.y.z.dmg`를 받으세요. 이전 버전과 변경 내용은 [릴리스 목록](https://github.com/HRCEO/mini-aquarium/releases)에서 볼 수 있어요.
 
-받은 파일이 온전한지 확인하고 싶다면 릴리스 설명에 적힌 SHA-256과 비교해요.
-
-```bash
-shasum -a 256 ~/Downloads/MiniAquarium-x.y.z.dmg
-```
-
 ## 설치 (dmg로 받은 경우)
 
 1. `MiniAquarium-x.y.z.dmg`를 열고 **MiniAquarium**을 **Applications**로 끌어다 놓아요.
