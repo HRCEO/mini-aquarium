@@ -8,9 +8,14 @@ final class AquariumModel: ObservableObject {
     private static let hiddenInterval = 1.0
     private static let bannerDuration = 10.0
     private static let maxTickDelta = 0.1
+    private static let systemSampleInterval = 2.0
+    /// 시스템 값이 바뀔 때 화면이 따라가는 빠르기 (초당 비율). 값이 튀어도 어항은 천천히 변한다.
+    private static let systemEaseRate = 1.2
 
     @Published private(set) var frame = 0
     @Published private(set) var timer: TimerState?
+    /// 진행 중인 포모도로. nil이면 일반 타이머이거나 타이머가 없다.
+    @Published private(set) var pomodoro: PomodoroSession?
     @Published private(set) var bannerUntil: Date?
     @Published private(set) var settings: AquariumSettings { didSet { L10n.current = settings.language } }
     /// Dock 옆에 맞춰 넣을 때의 창 크기(pt). nil이면 설정의 비율/크기를 따른다.
@@ -18,17 +23,30 @@ final class AquariumModel: ObservableObject {
 
     let sim: Simulation
     weak var window: NSWindow?
+    /// 지금 그려지는 물 높이(0.55...1)와 탁함(0...0.5). 시스템 상태를 부드럽게 따라간다.
+    private(set) var waterLevel = 1.0
+    private(set) var turbidity = 0.0
 
     private let eventHandlers: [AquariumEventHandler]
+    private let systemSampler: () -> SystemLoad
+    /// 마지막으로 읽은 시스템 상태. 연동이 켜져 있을 때만 값이 있다 (설정 화면의 상태 표시용).
+    @Published private(set) var systemLoad: SystemLoad?
+    private var nextSystemSample = Date.distantPast
     private var ticker: Timer?
     private var lastTick = Date()
     private var dragStartMouse: NSPoint?
     private var dragStartOrigin: NSPoint = .zero
     private var didDrag = false
 
-    init(settings: AquariumSettings = SettingsStore.load(), eventHandlers: [AquariumEventHandler] = [SoundAlert()]) {
+    init(
+        settings: AquariumSettings = SettingsStore.load(),
+        eventHandlers: [AquariumEventHandler] = [SoundAlert()],
+        systemSampler: (() -> SystemLoad)? = nil
+    ) {
         self.settings = settings
         self.eventHandlers = eventHandlers
+        let monitor = SystemMonitor()
+        self.systemSampler = systemSampler ?? { monitor.sample() }
         L10n.current = settings.language
         let rect = settings.shape.rect(in: settings.layout.logicalSize)
         sim = Simulation(tankRect: rect, shape: settings.shape)
@@ -77,6 +95,7 @@ final class AquariumModel: ObservableObject {
         let next = transform(settings)
         guard next != settings else { return }
         settings = next
+        if !next.pomodoroEnabled, pomodoro != nil { cancelTimer() }
         sim.bodyScale = next.objectSize.fishScale
         sim.configure(tankRect: (isDocked ? TankShape.rounded : next.shape).rect(in: logicalSize, inset: tankInset), shape: isDocked ? .rounded : next.shape)
         sim.setFish(next.fish)
@@ -106,10 +125,12 @@ final class AquariumModel: ObservableObject {
     // MARK: - Timer
 
     func startTimer(minutes: Double) {
+        pomodoro = nil
         startTimer(TimerState(start: Date(), duration: minutes * 60))
     }
 
     func startTimer(untilMinuteOfDay minute: Int) {
+        pomodoro = nil
         startTimer(TimerState.until(minuteOfDay: minute, from: Date()))
     }
 
@@ -119,9 +140,42 @@ final class AquariumModel: ObservableObject {
         bannerUntil = nil
     }
 
+    /// 타이머를 멈춘다. 포모도로 중이었다면 포모도로도 끝난다.
     func cancelTimer() {
+        pomodoro = nil
         timer = nil
+        bannerUntil = nil
         sim.nibbleZone = nil
+    }
+
+    // MARK: - Pomodoro
+
+    /// 집중부터 새 포모도로를 시작한다. 진행 중이던 타이머는 대체된다.
+    func startPomodoro() {
+        guard settings.pomodoroEnabled else { return }
+        pomodoro = PomodoroSession()
+        beginPomodoroPhase()
+    }
+
+    /// 지금 단계를 건너뛰고 다음 단계로 간다 (예: 일찍 끝났거나 휴식을 줄이고 싶을 때).
+    func skipPomodoroPhase() {
+        guard pomodoro != nil else { return }
+        advancePomodoro(at: Date())
+    }
+
+    private func beginPomodoroPhase() {
+        guard let session = pomodoro else { return }
+        startTimer(TimerState(start: Date(), duration: settings.pomodoro.duration(of: session.phase)))
+    }
+
+    private func advancePomodoro(at now: Date) {
+        guard let session = pomodoro else { return }
+        let next = session.advanced(plan: settings.pomodoro)
+        pomodoro = next
+        beginPomodoroPhase()
+        // 새 단계가 시작됐음을 어항이 한동안 알려준다 (startTimer가 배너를 지우므로 그 뒤에 켠다).
+        bannerUntil = now.addingTimeInterval(Self.bannerDuration)
+        emit(.pomodoroPhaseChanged(next.phase))
     }
 
     // MARK: - Feeding
@@ -156,6 +210,7 @@ final class AquariumModel: ObservableObject {
 
     /// 시뮬레이션 한 프레임. 스냅샷 렌더링처럼 실시간 틱 없이 결정적으로 진행할 때도 쓴다.
     func advance(by delta: TimeInterval, now: Date = Date()) {
+        updateSystemLink(by: delta, now: now)
         if let active = timer {
             if active.isFinished(at: now) {
                 finishTimer(at: now)
@@ -180,8 +235,40 @@ final class AquariumModel: ObservableObject {
     private func finishTimer(at now: Date) {
         timer = nil
         sim.nibbleZone = nil
+        if pomodoro != nil {
+            advancePomodoro(at: now)   // 소리와 배너는 단계 전환이 맡는다
+            return
+        }
         bannerUntil = now.addingTimeInterval(Self.bannerDuration)
         emit(.timerFinished)
+    }
+
+    // MARK: - System link
+
+    /// 시스템 상태를 주기적으로 읽어, 물고기 속도·물 높이·탁함이 목표값을 부드럽게 따라가게 한다.
+    /// 연동이 꺼져 있으면 목표가 평소 값이라 천천히 원래 모습으로 돌아온다.
+    private func updateSystemLink(by delta: TimeInterval, now: Date) {
+        if settings.systemLink {
+            if now >= nextSystemSample {
+                let sampled = systemSampler()
+                if sampled != systemLoad { systemLoad = sampled }
+                nextSystemSample = now.addingTimeInterval(Self.systemSampleInterval)
+            }
+        } else {
+            nextSystemSample = .distantPast
+            if systemLoad != nil { systemLoad = nil }
+        }
+        let load = (settings.systemLink ? systemLoad : nil) ?? SystemLoad.idle
+        let wanted = (
+            speed: settings.systemLink ? load.swimSpeed : 1,
+            water: load.waterLevel,
+            haze: load.turbidity
+        )
+        let blend = min(1, delta * Self.systemEaseRate)
+        sim.speedScale += (wanted.speed - sim.speedScale) * blend
+        waterLevel += (wanted.water - waterLevel) * blend
+        turbidity += (wanted.haze - turbidity) * blend
+        sim.waterLevel = waterLevel
     }
 
     private func emit(_ event: AquariumEvent) {

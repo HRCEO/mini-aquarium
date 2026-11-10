@@ -205,7 +205,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func statusText() -> String {
-        model.bannerUntil != nil ? " " + tr("⏰ 끝났어요!", "⏰ Time's up!") : ""
+        if model.bannerUntil != nil, model.pomodoro == nil { return " " + tr("⏰ 끝났어요!", "⏰ Time's up!") }
+        guard let session = model.pomodoro, let timer = model.timer else { return "" }
+        let icon = session.phase == .focus ? "🍅" : "☕"
+        return " \(icon) " + TimerState.format(timer.remaining(at: Date()))
     }
 
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {

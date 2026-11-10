@@ -27,11 +27,13 @@ enum TankRenderer {
 
         context.drawLayer { layer in
             layer.clip(to: outline)
-            drawWater(&layer, rect: rect)
+            let waterRect = waterArea(in: rect, level: model.waterLevel)
+            drawWater(&layer, rect: rect, area: waterRect, time: t)
             drawPlankton(&layer, rect: rect, time: t)
             drawSand(&layer, rect: rect)
             drawDecors(&layer, decors.filter { $0.layer < 2 }, rect: rect, shape: shape, time: t, scale: model.decorScale)
             drawBubbles(&layer, rect: rect, time: t)
+            drawHaze(&layer, area: waterRect, amount: model.turbidity)
             let zone = model.timer != nil && model.settings.showTimerFood ? model.zone() : nil
             // 가로 띠는 소품에 가려지지 않게 맨 위에 그린다. (세로 띠는 소품과 겹치지 않아 물고기 뒤에 둔다)
             let stripOnTop = zone.map { !$0.isVertical } ?? false
@@ -69,21 +71,50 @@ enum TankRenderer {
 
     // MARK: - Layers
 
-    private static func drawWater(_ layer: inout GraphicsContext, rect: CGRect) {
+    /// 물이 차 있는 영역. `level`이 1이면 어항 전체, 낮을수록 위가 비어 보인다.
+    private static func waterArea(in rect: CGRect, level: Double) -> CGRect {
+        let drop = rect.height * CGFloat(1 - min(max(level, 0), 1))
+        return CGRect(x: rect.minX, y: rect.minY + drop, width: rect.width, height: rect.height - drop)
+    }
+
+    private static func drawWater(_ layer: inout GraphicsContext, rect: CGRect, area: CGRect, time: Double) {
+        let isLowered = area.minY > rect.minY + 0.5
+        if isLowered {
+            layer.fill(Path(rect), with: .color(.white.opacity(0.06)))   // 빈 유리
+        }
         layer.fill(
-            Path(rect),
+            Path(area),
             with: .linearGradient(
                 Gradient(colors: [waterTop, waterBottom]),
-                startPoint: CGPoint(x: rect.midX, y: rect.minY),
-                endPoint: CGPoint(x: rect.midX, y: rect.maxY)
+                startPoint: CGPoint(x: area.midX, y: area.minY),
+                endPoint: CGPoint(x: area.midX, y: area.maxY)
             )
         )
+        if isLowered { drawSurface(&layer, area: area, time: time) }
         var ray = Path()
         ray.move(to: CGPoint(x: rect.minX + rect.width * 0.25, y: rect.minY))
         ray.addLine(to: CGPoint(x: rect.minX + rect.width * 0.38, y: rect.minY))
         ray.addLine(to: CGPoint(x: rect.minX + rect.width * 0.18, y: rect.maxY))
         ray.addLine(to: CGPoint(x: rect.minX + rect.width * 0.02, y: rect.maxY))
         layer.fill(ray, with: .color(.white.opacity(0.07)))
+    }
+
+    /// 물이 낮아졌을 때 수면의 잔물결과 밝은 선.
+    private static func drawSurface(_ layer: inout GraphicsContext, area: CGRect, time: Double) {
+        var wave = Path()
+        let steps = 24
+        for step in 0...steps {
+            let x = area.minX + area.width * CGFloat(step) / CGFloat(steps)
+            let y = area.minY + CGFloat(sin(time * 1.6 + Double(step) * 0.7)) * 1.2
+            if step == 0 { wave.move(to: CGPoint(x: x, y: y)) } else { wave.addLine(to: CGPoint(x: x, y: y)) }
+        }
+        layer.stroke(wave, with: .color(.white.opacity(0.75)), lineWidth: 1.6)
+    }
+
+    /// 메모리 사용이 많을 때 물이 누렇게 흐려진다. 소품 뒤·물고기 앞에 얹어 깊이감을 준다.
+    private static func drawHaze(_ layer: inout GraphicsContext, area: CGRect, amount: Double) {
+        guard amount > 0.01 else { return }
+        layer.fill(Path(area), with: .color(Art.c(0.52, 0.5, 0.2, amount)))
     }
 
     private static func drawSand(_ layer: inout GraphicsContext, rect: CGRect) {
@@ -234,6 +265,17 @@ enum TankRenderer {
 
     // MARK: - Header text
 
+    /// 타이머 위에 보여줄 설명. 포모도로 중이면 단계와 진행 순서를 알려준다.
+    private static func timerCaption(_ model: AquariumModel) -> String {
+        guard let session = model.pomodoro else { return tr("남은 시간", "Time left") }
+        let plan = model.settings.pomodoro
+        switch session.phase {
+        case .focus: return tr("🍅 집중 \(session.focusIndexInSet(plan: plan))/\(plan.cyclesBeforeLongBreak)", "🍅 Focus \(session.focusIndexInSet(plan: plan))/\(plan.cyclesBeforeLongBreak)")
+        case .shortBreak: return tr("☕ 휴식", "☕ Break")
+        case .longBreak: return tr("🌴 긴 휴식", "🌴 Long break")
+        }
+    }
+
     private static func timeFontSize(_ text: String, width: CGFloat) -> CGFloat {
         min(26, max(9, width * 0.86 / (CGFloat(text.count) * 0.62)))
     }
@@ -245,7 +287,7 @@ enum TankRenderer {
         let caption: String
         if let timer = model.timer {
             guard model.settings.showRemaining else { return }   // 글씨만 숨긴다 (바·물고기는 그대로)
-            caption = tr("남은 시간", "Time left")
+            caption = timerCaption(model)
             timeText = TimerState.format(timer.remaining(at: now))
         } else if model.bannerUntil != nil {
             caption = tr("⏰ 끝났어요!", "⏰ Time's up!")

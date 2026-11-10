@@ -167,6 +167,7 @@ struct SettingsPanel: View {
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
         }
+        PomodoroControls(model: model)
     }
 
     private func startTimer() {
@@ -317,6 +318,7 @@ struct SettingsPanel: View {
                 }
             }
         }
+        SystemLinkControls(model: model)
     }
 
     // MARK: - Fish / decor
@@ -443,7 +445,7 @@ struct SettingsPanel: View {
 
 // MARK: - Building blocks
 
-private struct Section<Content: View>: View {
+struct Section<Content: View>: View {
     let title: String
     @ViewBuilder let content: Content
 
@@ -558,7 +560,7 @@ private struct InfoRow: View {
     }
 }
 
-private struct ToggleRow: View {
+struct ToggleRow: View {
     let title: String
     let isOn: Bool
     let change: (Bool) -> Void
@@ -607,7 +609,7 @@ private struct NumberField: View {
     }
 }
 
-private struct Nudger: View {
+struct Nudger: View {
     let value: String
     let unit: String
     let minus: () -> Void

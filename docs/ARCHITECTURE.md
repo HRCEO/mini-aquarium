@@ -9,7 +9,9 @@ Sources/
 │   ├── DockLayout      빈 띠 → 패널 위치·크기·뷰포트·이음새 계산 (순수 계산)
 │   ├── Language        한국어/English 선택 (Language.current, 시스템 언어 기본값)
 │   ├── Species/Decor/FoodKind/TankShape/TankSize/Layout   어항 구성 요소 정의
-│   └── TimerState      타이머 진행률
+│   ├── TimerState      타이머 진행률
+│   ├── Pomodoro        PomodoroPlan(시간 구성)·PomodoroSession(집중↔휴식 순환)
+│   └── SystemLoad      CPU·메모리·배터리 → 헤엄 속도·물 높이·탁함 매핑 (순수 계산)
 └── MiniAquarium/       AppKit + SwiftUI 앱
     ├── AppDelegate     패널 두 개(앞/뒤), 메뉴바 아이템, DockLayout을 창에 적용
     ├── AquariumModel   설정·시뮬레이션·타이머를 묶는 ObservableObject
@@ -18,7 +20,9 @@ Sources/
     ├── AquariumEvents  AquariumEvent + 핸들러(SoundAlert). 알림 방식을 추가하는 확장 지점
     ├── TankView / TankRenderer / PortalOverlay   그리기
     ├── FishArt(+More) / DecorArt / FoodArt        벡터 아트
+    ├── SystemMonitor   host_statistics·IOKit.ps로 시스템 상태를 읽어 SystemLoad로 돌려줌
     ├── SettingsPanel   설정 UI (타이머·어항·물고기·꾸미기·정보)
+    ├── PomodoroPanel   포모도로·시스템 연동 설정 컨트롤 (각각 on/off 스위치)
     ├── AppInfo         버전·제작자, 로그인 시 자동 실행(SMAppService)
     └── Snapshot        --snapshot PNG 렌더링 (화면 녹화 권한 불필요)
 Tests/MiniAquariumCoreTests/   Swift Testing
@@ -72,6 +76,14 @@ DockMonitor ──(바뀌었을 수 있음)──▶ AppDelegate.refreshDock()
 3. 모델에서 사건이 일어나는 곳에서 `emit(...)`을 부르면 모든 핸들러가 받아요
 
 어항 배너와 메뉴바 "끝났어요" 문구는 이벤트가 아니라 모델 상태(`bannerUntil`)로 그려져요. 일정 시간 계속 보여야 해서예요.
+
+### 포모도로와 시스템 연동
+
+둘 다 설정에서 끌 수 있어요 (`pomodoroEnabled` 기본 켜짐, `systemLink` 기본 꺼짐). 꺼 두면 어항은 평소 모습 그대로예요.
+
+- **포모도로**: `AquariumModel.pomodoro`(`PomodoroSession?`)가 있으면 진행 중이에요. 단계마다 기존 타이머(`startTimer`)를 다시 걸고, 끝나면 `finishTimer` → `advancePomodoro`가 다음 단계로 넘기며 `.pomodoroPhaseChanged`를 보내요. 일반 타이머를 시작하거나 취소하면 포모도로도 끝나요.
+- **시스템 연동**: `advance()`가 2초마다 `systemSampler`(기본 `SystemMonitor().sample`)를 읽고, `Simulation.speedScale`·`waterLevel`과 모델의 `turbidity`를 목표값으로 부드럽게 따라가게 해요. 꺼지면 목표가 평소 값으로 돌아가요. 테스트·스냅샷은 `systemSampler`에 고정값을 주입해요 (`--sys cpu,mem,battery`).
+- 스냅샷: `--pomodoro`, `--controls`로 UI를 확인할 수 있어요. (`ImageRenderer`가 AppKit 기반 스위치를 못 그려 금지 표시로 보이는 건 스냅샷 한계예요.)
 
 ### Dock 변화에 반응하기
 

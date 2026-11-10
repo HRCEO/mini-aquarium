@@ -2,7 +2,7 @@ import AppKit
 import MiniAquariumCore
 import SwiftUI
 
-/// `MiniAquarium --snapshot out.png [--shape rounded|bowl|tall] [--timer 0.6] [--feed] [--size small|medium|large|huge] [--popover]`
+/// `MiniAquarium --snapshot out.png [--shape rounded|bowl|tall] [--timer 0.6] [--feed] [--size small|medium|large|huge] [--popover] [--sys cpu,mem,battery] [--pomodoro]`
 /// 화면 녹화 권한 없이 어항을 PNG로 렌더링해 시각 검증에 쓴다.
 @MainActor
 enum Snapshot {
@@ -15,6 +15,7 @@ enum Snapshot {
         }
         let shape = value(after: "--shape", in: arguments).flatMap(TankShape.init(rawValue:)) ?? .rounded
         let timerRatio = value(after: "--timer", in: arguments).flatMap(Double.init)
+        let sample = value(after: "--sys", in: arguments).map(Self.parseLoad)
 
         let settings = AquariumSettings(
             fish: Species.allCases,
@@ -25,9 +26,10 @@ enum Snapshot {
             decors: Decor.allCases,
             showRemaining: !arguments.contains("--hide-remaining"),
             showTimerFood: !arguments.contains("--hide-food"),
+            systemLink: sample != nil,
             language: value(after: "--lang", in: arguments).flatMap(Language.init(rawValue:)) ?? .system
         )
-        let model = AquariumModel(settings: settings)
+        let model = AquariumModel(settings: settings, systemSampler: sample.map { load in { load } })
         let now = Date()
         if let dock = value(after: "--dock", in: arguments)?.split(separator: "x").compactMap({ Double($0) }), dock.count == 2 {
             model.setDockedSize(CGSize(width: dock[0], height: dock[1]))
@@ -39,6 +41,7 @@ enum Snapshot {
             model.startTimer(TimerState(start: now.addingTimeInterval(-total * (1 - ratio)), duration: total))
             model.sim.resetBites(cellsAlreadyEaten: (1 - ratio) * Double(BitePattern.defaultCellCount))
         }
+        if arguments.contains("--pomodoro") { model.startPomodoro() }
         if arguments.contains("--feed") {
             model.feed(at: CGPoint(x: model.tankRect.midX, y: model.tankRect.minY + 60))
         }
@@ -46,7 +49,12 @@ enum Snapshot {
 
         let viewport = value(after: "--viewport", in: arguments)?.split(separator: ",").compactMap({ Double($0) })
             .chunkedRect()
-        let content: AnyView = arguments.contains("--popover")
+        let content: AnyView = arguments.contains("--controls")
+            ? AnyView(VStack(alignment: .leading, spacing: 18) {
+                PomodoroControls(model: model)
+                SystemLinkControls(model: model)
+            }.padding(18).frame(width: 340).background(Color(white: 0.95)))
+            : arguments.contains("--popover")
             ? AnyView(PopoverContent(model: model).background(Color(white: 0.95)))
             : AnyView(TankView(model: model, viewport: viewport, portal: portalEdge(in: arguments)).background(Color(white: 0.92)))
         let renderer = ImageRenderer(content: content)
@@ -65,6 +73,13 @@ enum Snapshot {
             exit(1)
         }
         exit(0)
+    }
+
+    /// "cpu,mem,battery" (0...1). 배터리를 생략하면 배터리 없는 Mac.
+    private static func parseLoad(_ text: String) -> SystemLoad {
+        let parts = text.split(separator: ",").compactMap { Double($0) }
+        let at = { (index: Int) in index < parts.count ? parts[index] : 0 }
+        return SystemLoad(cpu: at(0), memory: at(1), battery: parts.count > 2 ? parts[2] : nil, isCharging: false)
     }
 
     private static func value(after flag: String, in arguments: [String]) -> String? {

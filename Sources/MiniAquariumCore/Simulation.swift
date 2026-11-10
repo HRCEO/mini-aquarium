@@ -96,6 +96,10 @@ public final class Simulation {
 
     /// 0...1. 타이머 종료 직후처럼 물고기가 들떠서 빠르게 돌아다닌다.
     public var excitement: Double = 0
+    /// 물이 차 있는 비율 (0.3...1). 낮으면 물고기는 수면 아래에만 머문다.
+    public var waterLevel: Double = 1 { didSet { waterLevel = min(max(waterLevel, 0.3), 1) } }
+    /// 헤엄 속도 배율 (시스템 연동 등). 1이 기본이고 0.3...3 범위로 보정된다.
+    public var speedScale: Double = 1 { didSet { speedScale = min(max(speedScale, 0.3), 3) } }
     private var stepDelta: Double = 0
     private var generator = SystemRandomNumberGenerator()
     private static let maxFoods = 24
@@ -260,7 +264,7 @@ public final class Simulation {
         if biteAmount > 0 { bites.bite(cell: biteCell, amount: biteAmount, side: index % 2) }
         fish.isInside = fish.visiting.map { $0 == .cave || $0 == .castle } == true && distance(fish.pos, fish.target) < 14
 
-        steer(&fish, toward: desired, cruise: cruise * CGFloat(1 + excitement * 1.6 + fish.dash * 1.8), dt: dt)
+        steer(&fish, toward: desired, cruise: cruise * CGFloat(1 + excitement * 1.6 + fish.dash * 1.8) * CGFloat(speedScale), dt: dt)
 
         let tiltGoal = fish.isNibbling ? (nibbleSpot?.tilt ?? 0) : 0
         fish.nibbleTilt += (tiltGoal - fish.nibbleTilt) * min(1, 6 * dt)
@@ -342,6 +346,8 @@ public final class Simulation {
         fish.pos.x += fish.vel.dx * CGFloat(dt)
         fish.pos.y += fish.vel.dy * CGFloat(dt)
         fish.pos = shape.clamp(fish.pos, in: tankRect, margin: bodySize(fish.species) / 2)
+        let surface = tankRect.minY + tankRect.height * CGFloat(1 - waterLevel)
+        fish.pos.y = max(fish.pos.y, surface + bodySize(fish.species) / 2)
     }
 
     private func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat { hypot(a.x - b.x, a.y - b.y) }

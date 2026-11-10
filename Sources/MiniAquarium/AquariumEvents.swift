@@ -1,9 +1,12 @@
 import AppKit
+import MiniAquariumCore
 
 /// 어항에서 사용자에게 알릴 만한 일.
 enum AquariumEvent: Equatable {
     /// 타이머가 끝났다.
     case timerFinished
+    /// 포모도로가 다음 단계로 넘어갔다 (값은 새로 시작한 단계).
+    case pomodoroPhaseChanged(PomodoroPhase)
 }
 
 /// 이벤트가 일어났을 때 무언가를 하는 쪽 (소리, 알림 센터, 화면 번쩍임 …).
@@ -17,12 +20,18 @@ protocol AquariumEventHandler {
     func handle(_ event: AquariumEvent)
 }
 
-/// 타이머가 끝나면 시스템 효과음을 낸다.
+/// 타이머가 끝나거나 포모도로 단계가 바뀌면 시스템 효과음을 낸다.
+/// 휴식이 시작될 때와 집중이 시작될 때 소리가 달라서 화면을 보지 않아도 구분된다.
 struct SoundAlert: AquariumEventHandler {
     var soundName = "Glass"
+    var focusStartSoundName = "Ping"
 
     func handle(_ event: AquariumEvent) {
-        guard event == .timerFinished else { return }
-        NSSound(named: soundName)?.play()
+        switch event {
+        case .timerFinished:
+            NSSound(named: soundName)?.play()
+        case .pomodoroPhaseChanged(let phase):
+            NSSound(named: phase.isBreak ? soundName : focusStartSoundName)?.play()
+        }
     }
 }

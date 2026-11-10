@@ -329,3 +329,138 @@ struct DockTests {
         #expect(AquariumSettings().with(targetMinuteOfDay: 1500).targetMinuteOfDay == 60)
     }
 }
+
+@Suite("Pomodoro")
+struct PomodoroTests {
+    private let plan = PomodoroPlan(focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, cyclesBeforeLongBreak: 4)
+
+    @Test("집중 → 짧은 휴식 → 집중 순서로 진행된다")
+    func focusThenShortBreak() {
+        let first = PomodoroSession()
+        let breakTime = first.advanced(plan: plan)
+        #expect(breakTime.phase == .shortBreak)
+        #expect(breakTime.completedFocus == 1)
+        #expect(breakTime.advanced(plan: plan).phase == .focus)
+    }
+
+    @Test("집중을 지정 횟수만큼 마치면 긴 휴식이 온다")
+    func longBreakAfterCycles() {
+        var session = PomodoroSession()
+        for _ in 0..<3 {
+            session = session.advanced(plan: plan).advanced(plan: plan)
+        }
+        #expect(session.phase == .focus)
+        #expect(session.completedFocus == 3)
+        #expect(session.advanced(plan: plan).phase == .longBreak)
+    }
+
+    @Test("계획 값은 허용 범위로 보정된다")
+    func planIsClamped() {
+        let wild = PomodoroPlan(focusMinutes: 0, shortBreakMinutes: 999, longBreakMinutes: -3, cyclesBeforeLongBreak: 1)
+        #expect(wild.focusMinutes == 1)
+        #expect(wild.shortBreakMinutes == 60)
+        #expect(wild.longBreakMinutes == 1)
+        #expect(wild.cyclesBeforeLongBreak == 2)
+    }
+
+    @Test("깨진 저장값을 읽어도 허용 범위로 보정된다 (0으로 나누기 방지)")
+    func decodedPlanIsClamped() {
+        let plan = decodePomodoroPlan(#"{"focusMinutes":0,"shortBreakMinutes":999,"longBreakMinutes":-3,"cyclesBeforeLongBreak":0}"#)
+        #expect(plan?.cyclesBeforeLongBreak == 2)
+        #expect(plan?.focusMinutes == 1)
+        #expect(plan?.shortBreakMinutes == 60)
+        #expect(plan?.longBreakMinutes == 1)
+        #expect(decodePomodoroPlan("{}") == PomodoroPlan())
+    }
+
+    @Test("단계별 길이는 초 단위로 계산된다")
+    func durations() {
+        #expect(plan.duration(of: .focus) == 1500)
+        #expect(plan.duration(of: .longBreak) == 900)
+    }
+
+    @Test("세트 안에서 몇 번째 집중인지 알려준다")
+    func focusIndex() {
+        #expect(PomodoroSession().focusIndexInSet(plan: plan) == 1)
+        #expect(PomodoroSession(phase: .shortBreak, completedFocus: 1).focusIndexInSet(plan: plan) == 1)
+        #expect(PomodoroSession(phase: .longBreak, completedFocus: 4).focusIndexInSet(plan: plan) == 4)
+    }
+}
+
+@Suite("SystemLoad")
+struct SystemLoadTests {
+    @Test("값은 0...1로 보정된다")
+    func clampsValues() {
+        let load = SystemLoad(cpu: 3, memory: -1, battery: .nan, isCharging: false)
+        #expect(load.cpu == 1)
+        #expect(load.memory == 0)
+        #expect(load.battery == 0)
+    }
+
+    @Test("CPU가 높을수록 빨리 헤엄친다")
+    func speedFollowsCPU() {
+        #expect(SystemLoad(cpu: 0, memory: 0, battery: nil, isCharging: false).swimSpeed == 0.7)
+        #expect(SystemLoad(cpu: 1, memory: 0, battery: nil, isCharging: false).swimSpeed == 2.0)
+    }
+
+    @Test("배터리가 줄면 물이 낮아지지만 충전 중이거나 배터리가 없으면 가득 찬다")
+    func waterLevelFollowsBattery() {
+        #expect(SystemLoad(cpu: 0, memory: 0, battery: 0, isCharging: false).waterLevel == 0.55)
+        #expect(SystemLoad(cpu: 0, memory: 0, battery: 1, isCharging: false).waterLevel == 1)
+        #expect(SystemLoad(cpu: 0, memory: 0, battery: 0.1, isCharging: true).waterLevel == 1)
+        #expect(SystemLoad(cpu: 0, memory: 0, battery: nil, isCharging: false).waterLevel == 1)
+    }
+
+    @Test("메모리 사용이 70%를 넘어야 물이 흐려진다")
+    func turbidityStartsAtSeventyPercent() {
+        #expect(SystemLoad(cpu: 0, memory: 0.7, battery: nil, isCharging: false).turbidity == 0)
+        #expect(SystemLoad(cpu: 0, memory: 1, battery: nil, isCharging: false).turbidity == 0.5)
+    }
+}
+
+@Suite("Settings: 포모도로·시스템 연동")
+struct NewSettingsTests {
+    @Test("옛 저장값에 키가 없어도 기본값으로 채워진다")
+    func decodesOldPayload() throws {
+        let store = try #require(EphemeralDefaults())
+        defer { store.cleanup() }
+        store.writeRaw(#"{"timerMinutes": 30}"#)
+        let loaded = SettingsStore.load(from: store.defaults)
+        #expect(loaded.pomodoro == PomodoroPlan())
+        #expect(loaded.systemLink == false)
+        #expect(loaded.pomodoroEnabled == true)
+        #expect(loaded.timerMinutes == 30)
+    }
+
+    @Test("저장하고 읽으면 값이 유지된다")
+    func roundTrip() throws {
+        let store = try #require(EphemeralDefaults())
+        defer { store.cleanup() }
+        let settings = AquariumSettings().with(pomodoro: PomodoroPlan(focusMinutes: 50)).with(systemLink: true).with(pomodoroEnabled: false)
+        SettingsStore.save(settings, to: store.defaults)
+        #expect(SettingsStore.load(from: store.defaults) == settings)
+    }
+}
+
+@Suite("Simulation: 낮아진 수면")
+struct WaterSurfaceTests {
+    @Test("물이 낮으면 물고기는 수면 아래에만 머문다")
+    func fishStayBelowSurface() {
+        let rect = CGRect(x: 0, y: 0, width: 300, height: 200)
+        let sim = Simulation(tankRect: rect, shape: .rounded)
+        sim.setFish([.goldfish, .tetra, .guppy])
+        sim.waterLevel = 0.5
+        for _ in 0..<600 { sim.step(1.0 / 30) }
+        let surface = rect.minY + rect.height * 0.5
+        #expect(sim.fish.allSatisfy { $0.pos.y >= surface })
+    }
+
+    @Test("물 높이와 속도 배율은 허용 범위로 보정된다")
+    func clampsScales() {
+        let sim = Simulation(tankRect: CGRect(x: 0, y: 0, width: 100, height: 100), shape: .rounded)
+        sim.waterLevel = 0
+        sim.speedScale = 99
+        #expect(sim.waterLevel == 0.3)
+        #expect(sim.speedScale == 3)
+    }
+}
