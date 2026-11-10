@@ -28,7 +28,7 @@ Mac 화면 한쪽, **Dock 옆 빈 자리**에 떠다니는 작은 어항이에�
 ## 설치 (dmg로 받은 경우)
 
 1. `MiniAquarium-x.y.z.dmg`를 열고 **MiniAquarium**을 **Applications**로 끌어다 놓아요.
-2. 아직 Apple 개발자 인증서로 서명·공증한 앱이 아니라서(예정: [docs/TODO.md](docs/TODO.md)) 처음에는 막힐 수 있어요. 아래 중 하나로 열어요.
+2. 아직 Apple 개발자 인증서로 서명·공증한 앱이 아니라서 처음에는 막힐 수 있어요. 아래 중 하나로 열어요.
    - Finder에서 앱을 **우클릭 → 열기 → 열기**
    - 또는 터미널에서: `xattr -dr com.apple.quarantine /Applications/MiniAquarium.app`
 3. 실행하면 메뉴바에 물고기 아이콘이 생겨요. 클릭하면 설정이 열려요.
@@ -63,7 +63,7 @@ open build/MiniAquarium.app   # 반드시 .app으로 실행 (자동 실행·권�
 bash scripts/make-dmg.sh      # build/MiniAquarium-<버전>.dmg (배경 그림·아이콘 배치 포함, 배포용)
 ```
 
-배포 절차와 버전 올리는 법은 [docs/RELEASING.md](docs/RELEASING.md), 구조는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), 앞으로의 계획(Apple 등록·공증·유료 판매)은 [docs/TODO.md](docs/TODO.md)를 보세요.
+배포 절차와 버전 올리는 법은 [docs/RELEASING.md](docs/RELEASING.md), 구조는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)를 보세요.
 
 ## 개발
 
