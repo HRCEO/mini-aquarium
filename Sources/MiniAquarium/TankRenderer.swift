@@ -32,6 +32,7 @@ enum TankRenderer {
             drawPlankton(&layer, rect: rect, time: t)
             drawSand(&layer, rect: rect)
             drawDecors(&layer, decors.filter { $0.layer < 2 }, rect: rect, shape: shape, time: t, scale: model.decorScale)
+            drawCritters(&layer, sim: sim, rect: rect, shape: shape, scale: model.decorScale, elevated: false)
             drawBubbles(&layer, rect: rect, time: t)
             drawHaze(&layer, area: waterRect, amount: model.turbidity)
             let zone = model.timer != nil && model.settings.showTimerFood ? model.zone() : nil
@@ -40,6 +41,7 @@ enum TankRenderer {
             if let zone, !stripOnTop { drawStrip(&layer, zone: zone, bites: sim.bites) }
             drawFish(&layer, sim: sim)
             drawDecors(&layer, decors.filter { $0.layer >= 2 }, rect: rect, shape: shape, time: t, scale: model.decorScale)
+            drawCritters(&layer, sim: sim, rect: rect, shape: shape, scale: model.decorScale, elevated: true)
             if let zone, stripOnTop { drawStrip(&layer, zone: zone, bites: sim.bites, backdrop: true) }
             drawFoods(&layer, sim: sim)
             drawCrumbs(&layer, sim: sim)
@@ -56,6 +58,23 @@ enum TankRenderer {
                 item.translateBy(x: decor.x(in: rect, shape: shape), y: rect.maxY - 9)
                 item.scaleBy(x: scale, y: scale)
                 DecorArt.draw(decor, in: &item, t: time + Double(decor.slot) * 10)
+            }
+        }
+    }
+
+    /// 바닥을 걷는 게. 올라선 소품 윗면 높이만큼 위로 그린다.
+    /// 소품 위에 올라선 게는 앞쪽 소품에 가려지지 않게 모든 소품을 그린 뒤에 그린다.
+    private static let elevatedAltitude = 1.5
+
+    private static func drawCritters(_ layer: inout GraphicsContext, sim: Simulation, rect: CGRect, shape: TankShape,
+                                     scale: CGFloat, elevated: Bool) {
+        for critter in sim.critters where (critter.altitude > elevatedAltitude) == elevated {
+            let x = shape.floorX(CGFloat(critter.slot), in: rect)
+            let y = shape.floorY(atX: x, in: rect, lift: critter.kind.floorLift) - CGFloat(critter.altitude)
+            layer.drawLayer { item in
+                item.translateBy(x: x, y: y)
+                item.scaleBy(x: scale * CritterArt.sizeFactor, y: scale * CritterArt.sizeFactor)
+                CritterArt.draw(critter, in: &item, t: sim.time)
             }
         }
     }
@@ -265,17 +284,6 @@ enum TankRenderer {
 
     // MARK: - Header text
 
-    /// 타이머 위에 보여줄 설명. 포모도로 중이면 단계와 진행 순서를 알려준다.
-    private static func timerCaption(_ model: AquariumModel) -> String {
-        guard let session = model.pomodoro else { return tr("남은 시간", "Time left") }
-        let plan = model.settings.pomodoro
-        switch session.phase {
-        case .focus: return tr("🍅 집중 \(session.focusIndexInSet(plan: plan))/\(plan.cyclesBeforeLongBreak)", "🍅 Focus \(session.focusIndexInSet(plan: plan))/\(plan.cyclesBeforeLongBreak)")
-        case .shortBreak: return tr("☕ 휴식", "☕ Break")
-        case .longBreak: return tr("🌴 긴 휴식", "🌴 Long break")
-        }
-    }
-
     private static func timeFontSize(_ text: String, width: CGFloat) -> CGFloat {
         min(26, max(9, width * 0.86 / (CGFloat(text.count) * 0.62)))
     }
@@ -287,7 +295,7 @@ enum TankRenderer {
         let caption: String
         if let timer = model.timer {
             guard model.settings.showRemaining else { return }   // 글씨만 숨긴다 (바·물고기는 그대로)
-            caption = timerCaption(model)
+            caption = tr("남은 시간", "Time left")
             timeText = TimerState.format(timer.remaining(at: now))
         } else if model.bannerUntil != nil {
             caption = tr("⏰ 끝났어요!", "⏰ Time's up!")

@@ -330,63 +330,6 @@ struct DockTests {
     }
 }
 
-@Suite("Pomodoro")
-struct PomodoroTests {
-    private let plan = PomodoroPlan(focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, cyclesBeforeLongBreak: 4)
-
-    @Test("집중 → 짧은 휴식 → 집중 순서로 진행된다")
-    func focusThenShortBreak() {
-        let first = PomodoroSession()
-        let breakTime = first.advanced(plan: plan)
-        #expect(breakTime.phase == .shortBreak)
-        #expect(breakTime.completedFocus == 1)
-        #expect(breakTime.advanced(plan: plan).phase == .focus)
-    }
-
-    @Test("집중을 지정 횟수만큼 마치면 긴 휴식이 온다")
-    func longBreakAfterCycles() {
-        var session = PomodoroSession()
-        for _ in 0..<3 {
-            session = session.advanced(plan: plan).advanced(plan: plan)
-        }
-        #expect(session.phase == .focus)
-        #expect(session.completedFocus == 3)
-        #expect(session.advanced(plan: plan).phase == .longBreak)
-    }
-
-    @Test("계획 값은 허용 범위로 보정된다")
-    func planIsClamped() {
-        let wild = PomodoroPlan(focusMinutes: 0, shortBreakMinutes: 999, longBreakMinutes: -3, cyclesBeforeLongBreak: 1)
-        #expect(wild.focusMinutes == 1)
-        #expect(wild.shortBreakMinutes == 60)
-        #expect(wild.longBreakMinutes == 1)
-        #expect(wild.cyclesBeforeLongBreak == 2)
-    }
-
-    @Test("깨진 저장값을 읽어도 허용 범위로 보정된다 (0으로 나누기 방지)")
-    func decodedPlanIsClamped() {
-        let plan = decodePomodoroPlan(#"{"focusMinutes":0,"shortBreakMinutes":999,"longBreakMinutes":-3,"cyclesBeforeLongBreak":0}"#)
-        #expect(plan?.cyclesBeforeLongBreak == 2)
-        #expect(plan?.focusMinutes == 1)
-        #expect(plan?.shortBreakMinutes == 60)
-        #expect(plan?.longBreakMinutes == 1)
-        #expect(decodePomodoroPlan("{}") == PomodoroPlan())
-    }
-
-    @Test("단계별 길이는 초 단위로 계산된다")
-    func durations() {
-        #expect(plan.duration(of: .focus) == 1500)
-        #expect(plan.duration(of: .longBreak) == 900)
-    }
-
-    @Test("세트 안에서 몇 번째 집중인지 알려준다")
-    func focusIndex() {
-        #expect(PomodoroSession().focusIndexInSet(plan: plan) == 1)
-        #expect(PomodoroSession(phase: .shortBreak, completedFocus: 1).focusIndexInSet(plan: plan) == 1)
-        #expect(PomodoroSession(phase: .longBreak, completedFocus: 4).focusIndexInSet(plan: plan) == 4)
-    }
-}
-
 @Suite("SystemLoad")
 struct SystemLoadTests {
     @Test("값은 0...1로 보정된다")
@@ -418,7 +361,7 @@ struct SystemLoadTests {
     }
 }
 
-@Suite("Settings: 포모도로·시스템 연동")
+@Suite("Settings: 시스템 연동")
 struct NewSettingsTests {
     @Test("옛 저장값에 키가 없어도 기본값으로 채워진다")
     func decodesOldPayload() throws {
@@ -426,9 +369,7 @@ struct NewSettingsTests {
         defer { store.cleanup() }
         store.writeRaw(#"{"timerMinutes": 30}"#)
         let loaded = SettingsStore.load(from: store.defaults)
-        #expect(loaded.pomodoro == PomodoroPlan())
         #expect(loaded.systemLink == false)
-        #expect(loaded.pomodoroEnabled == true)
         #expect(loaded.timerMinutes == 30)
     }
 
@@ -436,7 +377,7 @@ struct NewSettingsTests {
     func roundTrip() throws {
         let store = try #require(EphemeralDefaults())
         defer { store.cleanup() }
-        let settings = AquariumSettings().with(pomodoro: PomodoroPlan(focusMinutes: 50)).with(systemLink: true).with(pomodoroEnabled: false)
+        let settings = AquariumSettings().with(timerMinutes: 50).with(systemLink: true)
         SettingsStore.save(settings, to: store.defaults)
         #expect(SettingsStore.load(from: store.defaults) == settings)
     }
@@ -462,5 +403,97 @@ struct WaterSurfaceTests {
         sim.speedScale = 99
         #expect(sim.waterLevel == 0.3)
         #expect(sim.speedScale == 3)
+    }
+}
+
+@Suite("Critter: 바닥 생물")
+struct CritterTests {
+    private let perches = [Perch(slot: 0.5, halfWidth: 0.1, height: 20)]
+
+    @Test("오래 걸어도 바닥 범위를 벗어나지 않는다")
+    func staysInsideFloor() {
+        var critter = Critter(kind: .crab, slot: 0.5)
+        for _ in 0..<20_000 {
+            critter.step(1.0 / 30, perches: perches)
+            #expect(Critter.slotRange.contains(critter.slot))
+        }
+    }
+
+    @Test("시작 위치는 범위 안으로 잘린다")
+    func clampsInitialSlot() {
+        #expect(Critter(kind: .crab, slot: -3).slot == Critter.slotRange.lowerBound)
+        #expect(Critter(kind: .crab, slot: 9).slot == Critter.slotRange.upperBound)
+    }
+
+    @Test("발판 윗면에서는 높이만큼 올라서고, 밖에서는 0이다")
+    func perchLift() {
+        let perch = perches[0]
+        #expect(perch.lift(at: 0.5) == 20)
+        #expect(perch.lift(at: 0.9) == 0)
+        let edge = perch.lift(at: 0.5 + perch.halfWidth * 0.8)
+        #expect(edge > 0 && edge < 20)
+    }
+
+    @Test("게는 발판 위에 올라갔다 내려온다")
+    func climbsPerch() {
+        var critter = Critter(kind: .crab, slot: 0.5)
+        var peak = 0.0
+        for _ in 0..<60_000 {
+            critter.step(1.0 / 30, perches: perches)
+            peak = max(peak, critter.altitude)
+            #expect(critter.altitude >= 0 && critter.altitude <= 20.001)
+        }
+        #expect(peak > 10)
+    }
+
+    @Test("발판은 올라설 수 있는 소품에서만 만들어진다")
+    func perchesFromDecors() {
+        let rect = CGRect(x: 0, y: 0, width: 300, height: 200)
+        let made = Perch.make(decors: [.kelp, .chest, .shells, .cave], scale: 1, rect: rect, shape: .rounded)
+        #expect(made.count == 2)
+        #expect(made.allSatisfy { $0.height > 0 && $0.halfWidth > 0 })
+    }
+
+    @Test("setCritters는 기존 개체를 재사용하고 모자란 만큼만 추가한다")
+    func setCrittersReuses() {
+        let sim = Simulation(tankRect: CGRect(x: 0, y: 0, width: 200, height: 100), shape: .rounded)
+        sim.setCritters([.crab])
+        let ids = sim.critters.map(\.id)
+        sim.setCritters([.crab, .crab])
+        #expect(sim.critters.count == 2)
+        #expect(Set(ids).isSubset(of: Set(sim.critters.map(\.id))))
+        sim.setCritters([])
+        #expect(sim.critters.isEmpty)
+    }
+
+    @Test("설정에서 추가·제거하고 최대 마릿수를 지킨다")
+    func settingsAddRemove() {
+        var settings = AquariumSettings()
+        for _ in 0..<(AquariumSettings.maxCritters + 3) { settings = settings.addingCritter(.crab) }
+        #expect(settings.critters.count == AquariumSettings.maxCritters)
+        #expect(settings.removingCritter(.crab).count(ofCritter: .crab) == AquariumSettings.maxCritters - 1)
+    }
+
+    @Test("옛 저장값에는 기본 생물이 채워지고, 없는 종류는 무시된다")
+    func persistence() throws {
+        let store = try #require(EphemeralDefaults())
+        defer { store.cleanup() }
+        store.writeRaw(#"{"timerMinutes": 30}"#)
+        #expect(SettingsStore.load(from: store.defaults).critters == [.crab])
+        store.writeRaw(#"{"critters": ["crab", "shrimp"]}"#)
+        #expect(SettingsStore.load(from: store.defaults).critters == [.crab])
+        let settings = AquariumSettings().addingCritter(.crab)
+        SettingsStore.save(settings, to: store.defaults)
+        #expect(SettingsStore.load(from: store.defaults) == settings)
+    }
+
+    @Test("바닥 좌표: 사각형은 그대로, 타원은 가장자리가 좁고 높다")
+    func floorGeometry() {
+        let rect = CGRect(x: 0, y: 0, width: 200, height: 100)
+        #expect(TankShape.rounded.floorX(0.5, in: rect) == rect.minX + rect.width * 0.5)
+        let bowl = TankShape.bowl
+        let edge = bowl.floorY(atX: bowl.floorX(0.06, in: rect), in: rect, lift: 6)
+        let mid = bowl.floorY(atX: bowl.floorX(0.5, in: rect), in: rect, lift: 6)
+        #expect(edge < mid)
     }
 }

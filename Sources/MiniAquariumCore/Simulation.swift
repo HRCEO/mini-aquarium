@@ -73,6 +73,7 @@ public final class Simulation {
     public private(set) var fish: [Fish] = []
     public private(set) var foods: [Food] = []
     public private(set) var crumbs: [Crumb] = []
+    public private(set) var critters: [Critter] = []
     public private(set) var time: Double = 0
     public private(set) var tankRect: CGRect
     public private(set) var shape: TankShape
@@ -89,6 +90,8 @@ public final class Simulation {
     public var seam: (position: CGFloat, vertical: Bool)?
     /// 물고기가 구경하러 가는 소품들
     public var attractions: [Attraction] = []
+    /// 게가 올라설 수 있는 소품 윗면
+    public var perches: [Perch] = []
     /// 물고기 몸 크기 배율 (설정의 물고기 크기). 그림과 이동 범위가 같이 따른다.
     public var bodyScale: CGFloat = 1
 
@@ -134,6 +137,17 @@ public final class Simulation {
         }
     }
 
+    /// 원하는 구성에 맞춰 기존 바닥 생물은 유지하고 모자란 만큼만 새로 만든다.
+    public func setCritters(_ kinds: [CritterKind]) {
+        var pool = critters
+        critters = kinds.map { wanted in
+            if let index = pool.firstIndex(where: { $0.kind == wanted }) {
+                return pool.remove(at: index)
+            }
+            return Critter(kind: wanted)
+        }
+    }
+
     /// 새 타이머를 시작한다. 띠가 사라질 순서를 새로 뽑는다.
     public func resetBites(cellsAlreadyEaten: Double = 0) {
         bites = BiteField()
@@ -154,6 +168,7 @@ public final class Simulation {
         time += dt
         stepFoods(dt)
         stepCrumbs(dt)
+        for index in critters.indices { critters[index].step(dt, perches: perches) }
         for index in fish.indices {
             fish[index] = crossingSeam(updated(fish[index], index: index, dt: dt))
         }

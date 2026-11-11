@@ -46,6 +46,19 @@ public enum TankShape: String, Codable, CaseIterable {
         return CGPoint(x: inner.midX + dx / d * a, y: inner.midY + dy / d * b)
     }
 
+    /// 바닥 위 위치(0...1)를 가로 좌표로 바꾼다. 타원은 가장자리가 좁아 안쪽으로 모은다.
+    public func floorX(_ slot: CGFloat, in rect: CGRect) -> CGFloat {
+        rect.minX + rect.width * (isEllipse ? 0.22 + slot * 0.56 : slot)
+    }
+
+    /// 가로 좌표 `x`에서 발이 닿는 높이. 타원은 가장자리로 갈수록 바닥이 올라간다.
+    public func floorY(atX x: CGFloat, in rect: CGRect, lift: CGFloat) -> CGFloat {
+        let base = rect.maxY - lift
+        guard isEllipse, rect.width > 0 else { return base }
+        let edge = min(max((x - rect.midX) / (rect.width / 2), -1), 1)
+        return base - rect.height / 2 * (1 - (1 - edge * edge).squareRoot())
+    }
+
     /// 시계/타이머 글자의 세로 기준선.
     public func headerY(in rect: CGRect) -> CGFloat {
         isEllipse ? rect.minY + rect.height * 0.24 : rect.minY + 30

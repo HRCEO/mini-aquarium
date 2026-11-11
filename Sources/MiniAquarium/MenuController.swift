@@ -69,17 +69,8 @@ final class MenuController: NSObject, NSMenuDelegate {
     private func addTimerItems(to menu: NSMenu) {
         if let timer = model.timer {
             let left = TimerState.format(timer.remaining(at: Date()))
-            if model.pomodoro != nil {
-                menu.addItem(item(tr("다음 단계로 건너뛰기", "Skip to next phase"), model.skipPomodoroPhase))
-                menu.addItem(item(tr("포모도로 그만하기 (\(left) 남음)", "Stop Pomodoro (\(left) left)"), model.cancelTimer))
-            } else {
-                menu.addItem(item(tr("타이머 취소 (\(left) 남음)", "Cancel timer (\(left) left)"), model.cancelTimer))
-            }
+            menu.addItem(item(tr("타이머 취소 (\(left) 남음)", "Cancel timer (\(left) left)"), model.cancelTimer))
             return
-        }
-        if model.settings.pomodoroEnabled {
-            let plan = model.settings.pomodoro
-            menu.addItem(item(tr("🍅 포모도로 시작 (\(plan.focusMinutes)분 집중)", "🍅 Start Pomodoro (\(plan.focusMinutes) min focus)"), model.startPomodoro))
         }
         var presets = Self.timerPresets.map { minutes in
             item(tr("\(Int(minutes))분", "\(Int(minutes)) min"), { [model] in model.startTimer(minutes: minutes) })

@@ -64,8 +64,3 @@ struct EphemeralDefaults {
         defaults.removePersistentDomain(forName: suite)
     }
 }
-
-/// 저장된 JSON에서 PomodoroPlan을 복원한다. 깨진 값도 그대로 넘겨 디코딩 보정을 검증한다.
-func decodePomodoroPlan(_ json: String) -> PomodoroPlan? {
-    try? JSONDecoder().decode(PomodoroPlan.self, from: Data(json.utf8))
-}

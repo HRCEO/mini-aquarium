@@ -14,8 +14,6 @@ final class AquariumModel: ObservableObject {
 
     @Published private(set) var frame = 0
     @Published private(set) var timer: TimerState?
-    /// 진행 중인 포모도로. nil이면 일반 타이머이거나 타이머가 없다.
-    @Published private(set) var pomodoro: PomodoroSession?
     @Published private(set) var bannerUntil: Date?
     @Published private(set) var settings: AquariumSettings { didSet { L10n.current = settings.language } }
     /// Dock 옆에 맞춰 넣을 때의 창 크기(pt). nil이면 설정의 비율/크기를 따른다.
@@ -52,7 +50,9 @@ final class AquariumModel: ObservableObject {
         sim = Simulation(tankRect: rect, shape: settings.shape)
         sim.bodyScale = settings.objectSize.fishScale
         sim.setFish(settings.fish)
+        sim.setCritters(settings.critters)
         sim.attractions = makeAttractions(for: settings)
+        sim.perches = makePerches(for: settings)
         startTicker(interval: Self.visibleInterval)
     }
 
@@ -87,6 +87,7 @@ final class AquariumModel: ObservableObject {
     private func refreshGeometry() {
         sim.configure(tankRect: tankRect, shape: shape)
         sim.attractions = makeAttractions(for: settings)
+        sim.perches = makePerches(for: settings)
     }
 
     // MARK: - Settings
@@ -95,11 +96,12 @@ final class AquariumModel: ObservableObject {
         let next = transform(settings)
         guard next != settings else { return }
         settings = next
-        if !next.pomodoroEnabled, pomodoro != nil { cancelTimer() }
         sim.bodyScale = next.objectSize.fishScale
         sim.configure(tankRect: (isDocked ? TankShape.rounded : next.shape).rect(in: logicalSize, inset: tankInset), shape: isDocked ? .rounded : next.shape)
         sim.setFish(next.fish)
+        sim.setCritters(next.critters)
         sim.attractions = makeAttractions(for: next)
+        sim.perches = makePerches(for: next)
         SettingsStore.save(next)
     }
 
@@ -122,15 +124,18 @@ final class AquariumModel: ObservableObject {
         }
     }
 
+    /// 게가 올라설 수 있는 소품 윗면.
+    private func makePerches(for settings: AquariumSettings) -> [Perch] {
+        Perch.make(decors: settings.decors, scale: decorScale, rect: shape.rect(in: logicalSize, inset: tankInset), shape: shape)
+    }
+
     // MARK: - Timer
 
     func startTimer(minutes: Double) {
-        pomodoro = nil
         startTimer(TimerState(start: Date(), duration: minutes * 60))
     }
 
     func startTimer(untilMinuteOfDay minute: Int) {
-        pomodoro = nil
         startTimer(TimerState.until(minuteOfDay: minute, from: Date()))
     }
 
@@ -140,42 +145,10 @@ final class AquariumModel: ObservableObject {
         bannerUntil = nil
     }
 
-    /// 타이머를 멈춘다. 포모도로 중이었다면 포모도로도 끝난다.
     func cancelTimer() {
-        pomodoro = nil
         timer = nil
         bannerUntil = nil
         sim.nibbleZone = nil
-    }
-
-    // MARK: - Pomodoro
-
-    /// 집중부터 새 포모도로를 시작한다. 진행 중이던 타이머는 대체된다.
-    func startPomodoro() {
-        guard settings.pomodoroEnabled else { return }
-        pomodoro = PomodoroSession()
-        beginPomodoroPhase()
-    }
-
-    /// 지금 단계를 건너뛰고 다음 단계로 간다 (예: 일찍 끝났거나 휴식을 줄이고 싶을 때).
-    func skipPomodoroPhase() {
-        guard pomodoro != nil else { return }
-        advancePomodoro(at: Date())
-    }
-
-    private func beginPomodoroPhase() {
-        guard let session = pomodoro else { return }
-        startTimer(TimerState(start: Date(), duration: settings.pomodoro.duration(of: session.phase)))
-    }
-
-    private func advancePomodoro(at now: Date) {
-        guard let session = pomodoro else { return }
-        let next = session.advanced(plan: settings.pomodoro)
-        pomodoro = next
-        beginPomodoroPhase()
-        // 새 단계가 시작됐음을 어항이 한동안 알려준다 (startTimer가 배너를 지우므로 그 뒤에 켠다).
-        bannerUntil = now.addingTimeInterval(Self.bannerDuration)
-        emit(.pomodoroPhaseChanged(next.phase))
     }
 
     // MARK: - Feeding
@@ -235,10 +208,6 @@ final class AquariumModel: ObservableObject {
     private func finishTimer(at now: Date) {
         timer = nil
         sim.nibbleZone = nil
-        if pomodoro != nil {
-            advancePomodoro(at: now)   // 소리와 배너는 단계 전환이 맡는다
-            return
-        }
         bannerUntil = now.addingTimeInterval(Self.bannerDuration)
         emit(.timerFinished)
     }

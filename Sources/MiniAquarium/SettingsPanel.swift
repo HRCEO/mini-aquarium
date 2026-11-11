@@ -167,7 +167,6 @@ struct SettingsPanel: View {
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
         }
-        PomodoroControls(model: model)
     }
 
     private func startTimer() {
@@ -346,6 +345,16 @@ struct SettingsPanel: View {
                     canAdd: settings.fish.count < AquariumSettings.maxFish,
                     add: { model.update { $0.adding(species) } },
                     remove: { model.update { $0.removing(species) } }
+                )
+            }
+            // 바닥 생물도 물고기와 같은 식구다. 소품이 아니라 이 목록에 둔다.
+            ForEach(CritterKind.allCases, id: \.self) { kind in
+                CritterCard(
+                    kind: kind,
+                    count: settings.count(ofCritter: kind),
+                    canAdd: settings.critters.count < AquariumSettings.maxCritters,
+                    add: { model.update { $0.addingCritter(kind) } },
+                    remove: { model.update { $0.removingCritter(kind) } }
                 )
             }
         }
@@ -698,13 +707,20 @@ private struct FishCard: View {
             }
             Text(species.title).font(.system(size: 11.5, weight: .medium))
             HStack(spacing: 4) {
-                stepButton("minus", enabled: count > 0, remove)
-                stepButton("plus", enabled: canAdd, add)
+                StepButton(symbol: "minus", isEnabled: count > 0, action: remove)
+                StepButton(symbol: "plus", isEnabled: canAdd, action: add)
             }
         }
     }
+}
 
-    private func stepButton(_ symbol: String, enabled: Bool, _ action: @escaping () -> Void) -> some View {
+/// 마릿수 조절용 작은 +/- 버튼.
+private struct StepButton: View {
+    let symbol: String
+    let isEnabled: Bool
+    let action: () -> Void
+
+    var body: some View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: 10, weight: .bold))
                 .frame(maxWidth: .infinity).padding(.vertical, 5)
@@ -712,8 +728,47 @@ private struct FishCard: View {
         }
         .buttonStyle(.plain)
         .focusable(false)
-        .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.35)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.35)
+    }
+}
+
+/// 바닥 생물 미리보기 카드: 모래 위를 걷는 모습과 이름, 마릿수 조절.
+private struct CritterCard: View {
+    let kind: CritterKind
+    let count: Int
+    let canAdd: Bool
+    let add: () -> Void
+    let remove: () -> Void
+
+    var body: some View {
+        VStack(spacing: 6) {
+            TimelineView(.animation) { timeline in
+                Canvas { context, size in
+                    let t = timeline.date.timeIntervalSinceReferenceDate
+                    context.fill(Path(CGRect(x: 0, y: size.height - 12, width: size.width, height: 12)),
+                                 with: Art.vertical(Art.c(0.95, 0.87, 0.66), Art.c(0.78, 0.66, 0.46), size.height - 12, size.height))
+                    context.translateBy(x: size.width / 2, y: size.height - 8)
+                    context.scaleBy(x: 1.6, y: 1.6)
+                    CritterArt.draw(kind, in: &context, gait: t, isMoving: true, facingRight: true, t: t, phase: 0)
+                }
+            }
+            .frame(height: 62)
+            .background(previewWater, in: RoundedRectangle(cornerRadius: 10))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(alignment: .topTrailing) {
+                if count > 0 {
+                    Text("\(count)").font(.system(size: 10, weight: .bold)).foregroundStyle(.white)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.accentColor, in: Capsule()).padding(4)
+                }
+            }
+            Text(kind.title).font(.system(size: 11.5, weight: .medium))
+            HStack(spacing: 4) {
+                StepButton(symbol: "minus", isEnabled: count > 0, action: remove)
+                StepButton(symbol: "plus", isEnabled: canAdd, action: add)
+            }
+        }
     }
 }
 

@@ -22,8 +22,7 @@ public struct AquariumSettings: Codable, Equatable {
     public private(set) var dockGap: Int
     public private(set) var showTimerFood: Bool
     public private(set) var statusFish: Species
-    public private(set) var pomodoro: PomodoroPlan
-    public private(set) var pomodoroEnabled: Bool
+    public private(set) var critters: [CritterKind]
     public private(set) var systemLink: Bool
     public private(set) var language: Language
     public private(set) var originX: Double?
@@ -47,8 +46,7 @@ public struct AquariumSettings: Codable, Equatable {
         dockGap: Int = 14,
         showTimerFood: Bool = true,
         statusFish: Species = .goldfish,
-        pomodoro: PomodoroPlan = PomodoroPlan(),
-        pomodoroEnabled: Bool = true,
+        critters: [CritterKind] = [.crab],
         systemLink: Bool = false,
         language: Language = .system,
         originX: Double? = nil,
@@ -71,8 +69,7 @@ public struct AquariumSettings: Codable, Equatable {
         self.dockGap = min(max(dockGap, 0), 80)
         self.showTimerFood = showTimerFood
         self.statusFish = statusFish
-        self.pomodoro = pomodoro
-        self.pomodoroEnabled = pomodoroEnabled
+        self.critters = critters
         self.systemLink = systemLink
         self.language = language
         self.originX = originX
@@ -108,6 +105,23 @@ public struct AquariumSettings: Codable, Equatable {
 
     public func count(of species: Species) -> Int { fish.filter { $0 == species }.count }
 
+    // MARK: 바닥 생물
+
+    public static let maxCritters = 6
+
+    public func addingCritter(_ kind: CritterKind) -> AquariumSettings {
+        guard critters.count < Self.maxCritters else { return self }
+        return changed { $0.critters.append(kind) }
+    }
+
+    /// 해당 종류 한 마리를 뺀다 (마지막으로 추가된 것부터).
+    public func removingCritter(_ kind: CritterKind) -> AquariumSettings {
+        guard let index = critters.lastIndex(of: kind) else { return self }
+        return changed { $0.critters.remove(at: index) }
+    }
+
+    public func count(ofCritter kind: CritterKind) -> Int { critters.filter { $0 == kind }.count }
+
     public func with(shape: TankShape) -> AquariumSettings { changed { $0.shape = shape } }
     public func with(size: TankSize) -> AquariumSettings { changed { $0.size = size } }
     public func with(layout: TankLayout) -> AquariumSettings { changed { $0.layout = layout } }
@@ -128,8 +142,6 @@ public struct AquariumSettings: Codable, Equatable {
     public func with(patrol: Bool) -> AquariumSettings { changed { $0.patrol = patrol } }
     public func with(showRemaining: Bool) -> AquariumSettings { changed { $0.showRemaining = showRemaining } }
     public func with(statusFish: Species) -> AquariumSettings { changed { $0.statusFish = statusFish } }
-    public func with(pomodoro: PomodoroPlan) -> AquariumSettings { changed { $0.pomodoro = pomodoro } }
-    public func with(pomodoroEnabled: Bool) -> AquariumSettings { changed { $0.pomodoroEnabled = pomodoroEnabled } }
     public func with(systemLink: Bool) -> AquariumSettings { changed { $0.systemLink = systemLink } }
     public func with(language: Language) -> AquariumSettings { changed { $0.language = language } }
     public func with(dockGap: Int) -> AquariumSettings { changed { $0.dockGap = min(max(dockGap, 0), 80) } }
@@ -161,7 +173,7 @@ public struct AquariumSettings: Codable, Equatable {
     // MARK: - Codable (필드가 늘어도 예전 저장값을 읽을 수 있게 관대하게 디코딩)
 
     private enum CodingKeys: String, CodingKey {
-        case fish, shape, size, layout, objectSize, decors, food, displayMode, timerMinutes, targetMinuteOfDay, dockFit, patrol, dockEdge, showRemaining, dockGap, showTimerFood, statusFish, pomodoro, pomodoroEnabled, systemLink, language, originX, originY
+        case fish, shape, size, layout, objectSize, decors, food, displayMode, timerMinutes, targetMinuteOfDay, dockFit, patrol, dockEdge, showRemaining, dockGap, showTimerFood, statusFish, critters, systemLink, language, originX, originY
     }
 
     public init(from decoder: Decoder) throws {
@@ -169,6 +181,7 @@ public struct AquariumSettings: Codable, Equatable {
         let defaults = AquariumSettings()
         let fishNames = try container.decodeIfPresent([String].self, forKey: .fish)
         let decorNames = try container.decodeIfPresent([String].self, forKey: .decors)
+        let critterNames = try container.decodeIfPresent([String].self, forKey: .critters)
         self.init(
             fish: fishNames.map { $0.compactMap(Species.init(rawValue:)) } ?? defaults.fish,
             shape: (try? container.decode(TankShape.self, forKey: .shape)) ?? defaults.shape,
@@ -187,8 +200,7 @@ public struct AquariumSettings: Codable, Equatable {
             dockGap: (try? container.decode(Int.self, forKey: .dockGap)) ?? defaults.dockGap,
             showTimerFood: (try? container.decode(Bool.self, forKey: .showTimerFood)) ?? defaults.showTimerFood,
             statusFish: (try? container.decode(Species.self, forKey: .statusFish)) ?? defaults.statusFish,
-            pomodoro: (try? container.decode(PomodoroPlan.self, forKey: .pomodoro)) ?? defaults.pomodoro,
-            pomodoroEnabled: (try? container.decode(Bool.self, forKey: .pomodoroEnabled)) ?? defaults.pomodoroEnabled,
+            critters: critterNames.map { $0.compactMap(CritterKind.init(rawValue:)) } ?? defaults.critters,
             systemLink: (try? container.decode(Bool.self, forKey: .systemLink)) ?? defaults.systemLink,
             language: (try? container.decode(Language.self, forKey: .language)) ?? defaults.language,
             originX: (try? container.decodeIfPresent(Double.self, forKey: .originX)) ?? nil,

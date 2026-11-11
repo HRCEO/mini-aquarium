@@ -73,8 +73,20 @@ public enum Decor: String, Codable, CaseIterable {
 
     /// 어항 모양(타원이면 가장자리가 좁아짐)에 맞춘 x 좌표.
     public func x(in rect: CGRect, shape: TankShape) -> CGFloat {
-        let fraction = shape.isEllipse ? 0.22 + slot * 0.56 : slot
-        return rect.minX + rect.width * fraction
+        shape.floorX(slot, in: rect)
+    }
+
+    /// 게가 올라설 수 있는 윗면 (그림 기준 pt): 중심 어긋남, 반폭, 높이. 올라설 수 없는 소품은 nil.
+    public var perchProfile: (offset: CGFloat, halfWidth: CGFloat, height: CGFloat)? {
+        let h = height
+        switch self {
+        case .cave: return (0.1 * h, 0.4 * h, 0.85 * h)
+        case .castle: return (0, 13, 0.62 * h)
+        case .rockPile: return (0, 11, 0.75 * h)
+        case .chest: return (0, 12, 0.8 * h)
+        case .driftwood: return (14, 8, 0.55 * h)
+        default: return nil
+        }
     }
 
     /// 뒤→앞 순서로 정렬한다 (같은 layer는 slot 순).

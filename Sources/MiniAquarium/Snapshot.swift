@@ -2,7 +2,7 @@ import AppKit
 import MiniAquariumCore
 import SwiftUI
 
-/// `MiniAquarium --snapshot out.png [--shape rounded|bowl|tall] [--timer 0.6] [--feed] [--size small|medium|large|huge] [--popover] [--sys cpu,mem,battery] [--pomodoro]`
+/// `MiniAquarium --snapshot out.png [--shape rounded|bowl|tall] [--timer 0.6] [--feed] [--size small|medium|large|huge] [--popover] [--sys cpu,mem,battery] [--critters]`
 /// 화면 녹화 권한 없이 어항을 PNG로 렌더링해 시각 검증에 쓴다.
 @MainActor
 enum Snapshot {
@@ -17,15 +17,17 @@ enum Snapshot {
         let timerRatio = value(after: "--timer", in: arguments).flatMap(Double.init)
         let sample = value(after: "--sys", in: arguments).map(Self.parseLoad)
 
+        let showCritters = arguments.contains("--critters")   // 바닥 생물이 잘 보이게 소품을 줄인다
         let settings = AquariumSettings(
             fish: Species.allCases,
             shape: shape,
             size: value(after: "--size", in: arguments).flatMap(TankSize.init(rawValue:)) ?? .medium,
             layout: value(after: "--layout", in: arguments).flatMap(TankLayout.init(rawValue:)) ?? .standard,
             objectSize: value(after: "--objects", in: arguments).flatMap(ObjectSize.init(rawValue:)) ?? .normal,
-            decors: Decor.allCases,
+            decors: showCritters ? [.kelp, .rockPile, .chest, .fanCoral, .shells] : Decor.allCases,
             showRemaining: !arguments.contains("--hide-remaining"),
             showTimerFood: !arguments.contains("--hide-food"),
+            critters: showCritters ? [.crab, .crab, .crab] : [.crab],
             systemLink: sample != nil,
             language: value(after: "--lang", in: arguments).flatMap(Language.init(rawValue:)) ?? .system
         )
@@ -41,17 +43,16 @@ enum Snapshot {
             model.startTimer(TimerState(start: now.addingTimeInterval(-total * (1 - ratio)), duration: total))
             model.sim.resetBites(cellsAlreadyEaten: (1 - ratio) * Double(BitePattern.defaultCellCount))
         }
-        if arguments.contains("--pomodoro") { model.startPomodoro() }
         if arguments.contains("--feed") {
             model.feed(at: CGPoint(x: model.tankRect.midX, y: model.tankRect.minY + 60))
         }
-        for _ in 0..<(30 * 6) { model.advance(by: 1.0 / 30, now: now) }
+        let warmUpSeconds = showCritters ? 60 : 6   // 게가 걸어 다닌 뒤의 모습을 찍는다
+        for _ in 0..<(30 * warmUpSeconds) { model.advance(by: 1.0 / 30, now: now) }
 
         let viewport = value(after: "--viewport", in: arguments)?.split(separator: ",").compactMap({ Double($0) })
             .chunkedRect()
         let content: AnyView = arguments.contains("--controls")
             ? AnyView(VStack(alignment: .leading, spacing: 18) {
-                PomodoroControls(model: model)
                 SystemLinkControls(model: model)
             }.padding(18).frame(width: 340).background(Color(white: 0.95)))
             : arguments.contains("--popover")
